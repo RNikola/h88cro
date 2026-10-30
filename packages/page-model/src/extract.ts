@@ -288,7 +288,12 @@ export function extractPageModel(input: ExtractInput): PageModel {
               .find('td, th')
               .toArray()
               .map((c) => clean($(c).text())),
-            text: clean($(tr).text()),
+            text: $(tr)
+              .find('td, th')
+              .toArray()
+              .map((c) => clean($(c).text()))
+              .filter(Boolean)
+              .join(' · '),
             linkIdx,
             selector: selectorFor($, tr),
           };

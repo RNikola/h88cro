@@ -1,0 +1,40 @@
+appId: com.h88cro.desktop
+productName: H88CRO
+executableName: h88cro
+copyright: Copyright © 2026 H88CRO
+directories:
+  output: release/${version}
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+asarUnpack:
+  - "**/node_modules/lighthouse/**"
+# Chromium for Testing is NOT bundled: it is downloaded on first run (keeps the installer small).
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [universal]
+  hardenedRuntime: true
+  # Phase 1 ships unsigned builds for internal testing (brief §13). Signing + notarization in Phase 2.
+  identity: null
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  # Per-user install: no admin rights needed (brief §12).
+  perMachine: false
+  oneClick: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target: [dir]
+publish:
+  # Auto-update feed (Phase 2): GitHub Releases on a release repo.
+  provider: github
+  owner: RNikola
+  repo: h88cro
+  releaseType: draft

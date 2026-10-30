@@ -1,0 +1,44 @@
+name: Build installers
+
+# Phase 1: unsigned builds for internal testing (brief §13). Run manually or by pushing a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+            artifact: '*.dmg'
+          - os: windows-latest
+            script: dist:win
+            artifact: '*.exe'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build installer (unsigned)
+        run: pnpm --filter @h88cro/desktop ${{ matrix.script }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Check the packaged app.asar for secrets
+        shell: bash
+        run: node scripts/scan-asar.mjs apps/desktop/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: h88cro-${{ matrix.os }}
+          path: apps/desktop/release/*/${{ matrix.artifact }}
+          if-no-files-found: error
