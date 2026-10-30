@@ -1,0 +1,34 @@
+{
+  "name": "h88cro",
+  "private": true,
+  "version": "0.1.0",
+  "description": "H88CRO: market-aware CRO audits for iGaming landing pages (desktop app)",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "dev": "pnpm --filter @h88cro/desktop dev",
+    "dist:mac": "pnpm --filter @h88cro/desktop dist:mac",
+    "dist:win": "pnpm --filter @h88cro/desktop dist:win",
+    "scan": "pnpm --filter @h88cro/engine exec tsx src/cli.ts",
+    "acceptance": "pnpm --filter @h88cro/engine acceptance"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.0",
+    "turbo": "^2.11.10",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "esbuild"
+    ]
+  }
+}

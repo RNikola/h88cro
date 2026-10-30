@@ -1,0 +1,14 @@
+node_modules/
+dist/
+out/
+release/
+.turbo/
+*.log
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-journal
+.scan-output/
+coverage/
+.DS_Store

@@ -1,0 +1,9 @@
+title = "H88CRO gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "h88cro-seed-admin-password"
+description = "Seed admin password must only come from SEED_ADMIN_PASSWORD env var"
+regex = '''(?i)SEED_ADMIN_PASSWORD\s*[=:]\s*['"]?[A-Za-z0-9!@#$%^&*]{6,}'''
