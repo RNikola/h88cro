@@ -13,6 +13,7 @@ asarUnpack:
   - "**/node_modules/lighthouse/**"
 # Chromium for Testing is NOT bundled: it is downloaded on first run (keeps the installer small).
 mac:
+  icon: build/icon.icns
   category: public.app-category.developer-tools
   target:
     - target: dmg
@@ -21,6 +22,7 @@ mac:
   # Phase 1 ships unsigned builds for internal testing (brief §13). Signing + notarization in Phase 2.
   identity: null
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
@@ -30,7 +32,11 @@ nsis:
   oneClick: false
   allowElevation: false
   allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: H88CRO
 linux:
+  icon: build/icon.png
   target: [dir]
 publish:
   # Auto-update feed (Phase 2): GitHub Releases on a release repo.

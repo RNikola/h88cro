@@ -26,6 +26,8 @@ function createWindow() {
     minHeight: 680,
     show: false,
     title: 'H88CRO',
+    // Packaged builds take the icon from the installer; this covers dev runs on Windows/Linux.
+    icon: app.isPackaged ? undefined : join(app.getAppPath(), 'build/icon.png'),
     backgroundColor: '#0b0e1a',
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
@@ -81,6 +83,7 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(async () => {
+  if (!app.isPackaged && process.platform === 'darwin') app.dock?.setIcon(join(app.getAppPath(), 'build/icon.png'));
   const svc = new Services();
   await svc.init();
 
