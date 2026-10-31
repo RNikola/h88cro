@@ -19,8 +19,8 @@ describe('scoring', () => {
   });
   it('weights the overall score by module weights', () => {
     const s = scoreReport([f('cro.a', 'critical', { confidence: 1 })], ['cro', 'links']);
-    // cro 75 × 22 + links 100 × 2 = 1850 / 24 ≈ 77
-    expect(s.overall).toBe(77);
+    // cro 75 × 28 + links 100 × 1 = 2200 / 29 ≈ 76
+    expect(s.overall).toBe(76);
   });
   it('ranks by impact × severity × confidence ÷ effort', () => {
     const quick = f('cro.quick', 'high', { impact: 4, effort: 'xs' });

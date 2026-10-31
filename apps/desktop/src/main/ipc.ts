@@ -8,11 +8,12 @@ import { ChannelSchemas, type Channel, type ChannelResult, type ScanDetail, type
 import { workerPath, type ScanQueue } from './queue';
 import { deleteSecret, getSecret, hint, setSecret } from './secrets';
 import { CLAUDE_KEY, type Services } from './services';
+import type { Updater } from './updater';
 
 type Handler<C extends Channel> = (payload: unknown, e: IpcMainInvokeEvent) => Promise<ChannelResult[C]> | ChannelResult[C];
 
 /** Channels that work before the local profile is unlocked. */
-const PUBLIC = new Set<Channel>(['app:state', 'profile:create', 'profile:unlock']);
+const PUBLIC = new Set<Channel>(['app:state', 'profile:create', 'profile:unlock', 'update:check', 'update:install']);
 
 async function dirSize(dir: string): Promise<number> {
   let total = 0;
@@ -27,7 +28,7 @@ async function dirSize(dir: string): Promise<number> {
   return total;
 }
 
-export function registerIpc(svc: Services, queue: ScanQueue, getWindow: () => BrowserWindow | undefined, isTrustedSender: (e: IpcMainInvokeEvent) => boolean) {
+export function registerIpc(svc: Services, queue: ScanQueue, updater: Updater, getWindow: () => BrowserWindow | undefined, isTrustedSender: (e: IpcMainInvokeEvent) => boolean) {
   const send = (event: string, data: unknown) => getWindow()?.webContents.send(event, data);
 
   const assetUrl = (path: string) => `h88-asset://scans/${relative(svc.scansDir, path).split(/[\\/]/).map(encodeURIComponent).join('/')}`;
@@ -208,6 +209,8 @@ export function registerIpc(svc: Services, queue: ScanQueue, getWindow: () => Br
         for (const f of ['mobile-full.png', 'desktop-full.png', 'snapshot.html']) await rm(join(svc.scansDir, d, f), { force: true });
       }
     },
+    'update:check': () => updater.check(),
+    'update:install': () => updater.install(),
     'shell:openExternal': async (p) => {
       const { url } = ChannelSchemas['shell:openExternal'].parse(p);
       if (/^https:\/\//.test(url)) await shell.openExternal(url);

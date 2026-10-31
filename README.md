@@ -22,7 +22,14 @@ pnpm scan https://example.com/fr/casinos --lighthouse --pdf --out ./.scan-output
 
 Set `H88CRO_CHROMIUM_PATH` to use an existing Chrome/Chromium instead of the downloaded engine. Copy `.env.example` to `.env` for local overrides. Never commit `.env`.
 
-Unsigned installers: `pnpm dist:mac` (universal .dmg) and `pnpm dist:win` (x64 .exe). The `Release` workflow builds both on GitHub.
+Unsigned installers: `pnpm dist:mac` (universal .dmg) and `pnpm dist:win` (x64 .exe).
+
+## Releases and updates
+
+- Users download from **https://github.com/RNikola/h88cro/releases/latest**. Install steps for end users: [docs/INSTALL.md](docs/INSTALL.md).
+- Every merge to `main` runs **Build installers**: it builds both installers, scans them for secrets, then publishes release `v0.1.<run number>`. Pull requests build the installers as run artifacts only.
+- Installed apps check that feed at start-up and every 4 hours (`electron-updater`). Windows downloads in the background and offers **Restart to update**. macOS can only self-install signed apps, so until the builds are signed the Mac app shows **New version available → Download**.
+- Profile, settings, Claude key and scans live in the OS user-data folder, so updates and reinstalls keep them.
 
 ## Layout
 
@@ -42,7 +49,9 @@ Unsigned installers: `pnpm dist:mac` (universal .dmg) and `pnpm dist:win` (x64 .
 
 Done: Electron shell, welcome window, local profile with password, first-run engine download with checksum, new scan (URLs or local HTML files), mobile and desktop render with screenshots, modules 5.1/5.2/5.3/5.5/5.6/5.7, report UI with ignore/comment, PDF/CSV/JSON/HTML export, fixture acceptance test, CI and unsigned release builds.
 
-Later phases: Team mode (Supabase accounts, shared reports), Fix/PR/Suggest actions, code signing and auto-update.
+Also: searchable picker for every language and country (hand-written profiles for 10 markets, generic ones from locale data for the rest), local-author check, in-app updates.
+
+Later phases: Team mode (Supabase accounts, shared reports), Fix/PR/Suggest actions, code signing (needed for silent Mac updates).
 
 ## Deviations from the brief
 

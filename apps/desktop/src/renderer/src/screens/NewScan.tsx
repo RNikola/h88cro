@@ -1,16 +1,36 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { countryOptions, languageOptions, SEED_MARKETS } from '@h88cro/core';
+import { SearchSelect, type SearchOption } from '../components/SearchSelect';
 import { FileUp, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Field, cx, inputClass } from '@h88cro/ui';
 import type { AppState } from '../../../shared/ipc';
 import type { Navigate } from '../App';
-import { MARKETS, PAGE_TYPES, invoke } from '../api';
+import { PAGE_TYPES, invoke } from '../api';
 
 export function NewScan({ navigate, state }: { navigate: Navigate; state: AppState }) {
   const qc = useQueryClient();
   const [urls, setUrls] = useState('');
   const [files, setFiles] = useState<string[]>([]);
-  const [market, setMarket] = useState('');
+  const [lang, setLang] = useState('');
+  const [country, setCountry] = useState('');
+  const market = lang ? `${lang}-${country || defaultCountry(lang)}` : '';
+  const langOpts = useMemo<SearchOption[]>(
+    () => [
+      { value: '', label: 'Auto-detect', hint: 'from the page' },
+      ...languageOptions().map((l) => ({
+        value: l.code,
+        label: l.name,
+        hint: l.native || undefined,
+        badge: SEED_MARKETS.some((m) => m.languages[0] === l.code) ? 'full profile' : undefined,
+      })),
+    ],
+    [],
+  );
+  const countryOpts = useMemo<SearchOption[]>(
+    () => countryOptions().map((c) => ({ value: c.code, label: c.name, hint: c.currency, keywords: c.code, badge: SEED_MARKETS.some((m) => m.market === c.code) ? 'full profile' : undefined })),
+    [],
+  );
   const [devices, setDevices] = useState<('mobile' | 'desktop')[]>(['mobile', 'desktop']);
   const [pageType, setPageType] = useState<(typeof PAGE_TYPES)[number]['id']>('toplist');
   const [lighthouse, setLighthouse] = useState(true);
@@ -85,14 +105,15 @@ export function NewScan({ navigate, state }: { navigate: Navigate; state: AppSta
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Market and language" hint="Auto-detected from the page; override if needed.">
-            <select className={inputClass} value={market} onChange={(e) => setMarket(e.target.value)}>
-              {MARKETS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+          <Field label="Language" hint="Every language, searchable. Auto-detect reads it from the page.">
+            <SearchSelect ariaLabel="Language" value={lang} options={langOpts} onChange={(v) => (setLang(v), setCountry(''))} placeholder="Search languages…" />
+          </Field>
+          <Field label="Country" hint={lang ? 'Sets currency and local checks.' : 'Pick a language first.'}>
+            {lang ? (
+              <SearchSelect ariaLabel="Country" value={country || defaultCountry(lang)} options={countryOpts} onChange={setCountry} placeholder="Search countries…" />
+            ) : (
+              <div className={cx(inputClass, 'text-muted')}>Auto-detect</div>
+            )}
           </Field>
           <Field label="Page type">
             <select className={inputClass} value={pageType} onChange={(e) => setPageType(e.target.value as typeof pageType)}>
@@ -166,4 +187,15 @@ export function NewScan({ navigate, state }: { navigate: Navigate; state: AppSta
       </Card>
     </div>
   );
+}
+
+/** Main country for a language (fr → FR, sv → SE, sr → RS); falls back to the seeded markets. */
+function defaultCountry(lang: string): string {
+  const seeded = SEED_MARKETS.find((m) => m.languages[0] === lang);
+  if (seeded) return seeded.market;
+  try {
+    return new Intl.Locale(lang).maximize().region ?? 'US';
+  } catch {
+    return 'US';
+  }
 }

@@ -5,6 +5,7 @@ import type { AppState } from '../../../shared/ipc';
 import type { Navigate, Route } from '../App';
 import { invoke } from '../api';
 import { Logo, Wordmark } from './Logo';
+import { UpdateBanner } from './UpdateBanner';
 
 export function Shell({ route, navigate, state, children, onLock, onOpenPalette }: { route: Route; navigate: Navigate; state: AppState; children: ReactNode; onLock: () => void; onOpenPalette: () => void }) {
   const mod = state.platform === 'darwin' ? '⌘' : 'Ctrl';
@@ -34,7 +35,10 @@ export function Shell({ route, navigate, state, children, onLock, onOpenPalette 
         <button onClick={onOpenPalette} className="mt-4 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs text-muted hover:text-fg">
           <Search size={14} /> Search & commands <span className="ml-auto">{mod}K</span>
         </button>
-        <div className="mt-auto space-y-2 border-t border-line pt-4 text-xs text-muted">
+        <div className="mt-auto pt-4">
+          <UpdateBanner initial={state.update} />
+        </div>
+        <div className="mt-4 space-y-2 border-t border-line pt-4 text-xs text-muted">
           <div className="flex items-center justify-between">
             <span>{state.profileName}</span>
             <span className="rounded bg-panel-3 px-1.5 py-0.5">Solo mode</span>

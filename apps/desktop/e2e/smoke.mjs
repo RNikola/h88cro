@@ -76,5 +76,21 @@ const titles = await win.locator('h3').allTextContents();
 if (!titles.some((t) => t.includes('deuxième place'))) throw new Error('Expected the rank mismatch finding in the report');
 step('consistency finding visible');
 
+// Language picker: search any language, country follows.
+await win.emulateMedia({ colorScheme: 'light' });
+await win.getByRole('button', { name: /New scan/ }).first().click();
+await win.getByRole('button', { name: 'Language' }).click();
+await win.getByPlaceholder('Search languages…').fill('serb');
+await win.keyboard.press('Enter');
+await win.getByRole('button', { name: 'Country' }).getByText('Serbia').waitFor();
+await snap('10-language-serbian');
+step('language search → Serbian / Serbia');
+
+// Settings shows the update section.
+await win.getByRole('button', { name: 'Settings' }).first().click();
+await win.getByRole('button', { name: /Check for updates/ }).waitFor();
+await snap('11-settings-updates');
+step('update settings visible');
+
 await app.close();
 console.log('E2E smoke test passed');

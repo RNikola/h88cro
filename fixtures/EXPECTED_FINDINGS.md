@@ -29,6 +29,9 @@ The acceptance test fails if a new Critical/High rule fires on them without bein
 | `cro.rating-staircase` | Medium | 10, 9.9, 9.8, 9.7, 9.6 |
 | `performance.img-missing-dimensions` | Medium | Images without width/height |
 | `eeat.no-affiliate-disclosure` | Medium | No commission disclosure |
+| `eeat.author-not-local` | High | French page signed by "Alina Sazonova" |
+| `cro.top-pick-not-highlighted` | Medium | Tower Casino's #1 card has no "top pick" badge |
+| `cro.review-no-pros-cons` | Medium | No review has a pros/cons list |
 
 ## keira-fr.html
 
@@ -52,6 +55,9 @@ The acceptance test fails if a new Critical/High rule fires on them without bein
 | `cro.generic-cta-text` | Medium | "Jouez maintenant" on every card |
 | `cro.table-row-missing-cta` | Medium | Summary-table rows have no button |
 | `eeat.no-person-schema` | Medium | Author without Person schema |
+| `eeat.author-not-local` | High | French page signed by "Ethan Walker" |
+| `cro.top-pick-not-highlighted` | Medium | Tower Casino's #1 card has no "top pick" badge |
+| `cro.review-no-pros-cons` | Medium | No review has a pros/cons list |
 | **LLM** `language.llm-*` | | "Ethan Walker … Testeuse de casinos" with "il" in the bio: male name with a feminine job title |
 
 ## sample-toplist-fr.html (synthetic, seeded with problems)

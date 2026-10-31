@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import { LocalDb } from '@h88cro/db';
 import { verifyChromium } from '@h88cro/engine';
-import { SettingsSchema, type AppState, type EngineState, type Settings } from '../shared/ipc';
+import { SettingsSchema, type AppState, type EngineState, type Settings, type UpdateState } from '../shared/ipc';
 import { getSecret, hint } from './secrets';
 
 export const CLAUDE_KEY = 'anthropic-api-key';
@@ -16,6 +16,7 @@ export class Services {
   readonly db: LocalDb;
   unlocked = false;
   engine: EngineState = { installed: false, installing: false };
+  update: () => UpdateState = () => ({ status: 'unsupported', current: app.getVersion() });
 
   constructor() {
     mkdirSync(this.scansDir, { recursive: true });
@@ -67,6 +68,7 @@ export class Services {
       platform: process.platform,
       version: app.getVersion(),
       freeDiskBytes,
+      update: this.update(),
     };
   }
 }

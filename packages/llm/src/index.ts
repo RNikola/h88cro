@@ -163,7 +163,7 @@ export class LlmEngine {
     const items = await this.call('language', this.opts.deep ? this.routing.deep : this.routing.analysis, market, [
       {
         type: 'text',
-        text: `${this.header(page, market, lang)}\nAuthor byline: ${page.author?.byline ?? '(none)'}\n\nTask: act as a native ${lang ?? ''} editor for this market. Find: literal translations, anglicisms, unnatural register or inconsistent formality (e.g. tu/vous in FR, du/ni in SE), grammatical agreement errors (e.g. a male name with a feminine job title like "Ethan Walker … Testeuse"), spelling and grammar errors, tone that does not fit the market. Skip number/currency formatting (checked elsewhere).\n\nText blocks (JSON):\n${JSON.stringify(blocks)}`,
+        text: `${this.header(page, market, lang)}\nAuthor byline: ${page.author?.byline ?? '(none)'}\n\nTask: act as a native ${lang ?? ''} editor for this market. Find: literal translations, anglicisms, unnatural register or inconsistent formality (e.g. tu/vous in FR, du/ni in SE), grammatical agreement errors (e.g. a male name with a feminine job title like "Ethan Walker … Testeuse"), an author name that does not sound native for this market (e.g. an English or Eastern-European name signing a French page), spelling and grammar errors, tone that does not fit the market. Skip number/currency formatting (checked elsewhere).\n\nText blocks (JSON):\n${JSON.stringify(blocks)}`,
       },
     ]);
     return this.toFindings('language', items, lang, market);

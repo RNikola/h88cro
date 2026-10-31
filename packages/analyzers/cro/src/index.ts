@@ -382,8 +382,71 @@ export function runCro(ctx: AnalyzerContext): Finding[] {
     }
   }
 
+  // The #1 pick should stand out: a badge or label tells undecided visitors which one to choose.
+  const top = [...page.cards].sort((a, b) => a.rank - b.rank)[0];
+  if (top && page.cards.length >= 3) {
+    const badge = /(top\s?(choix|pick|1)\b|n[°º]\s?1\b|#1\b|num[ée]ro\s?(1|un)\b|meilleur choix|choix de la r[ée]daction|notre (choix|favori|recommandation)|recommand[ée]|editor'?s (choice|pick)|best overall|our pick|winner|gagnant|b[äa]sta valet|redaktionens val|vores favorit|beste keuze|escolha (do editor|da reda[çc][ãa]o)|melhor escolha)/i;
+    if (!badge.test(top.text.replace(/^\s*\d{1,2}\s+/, ''))) {
+      out.push(
+        finding({
+          ruleId: 'cro.top-pick-not-highlighted',
+          severity: 'medium',
+          title: `The #1 pick (${top.name}) looks the same as the others`,
+          explanation: 'Visitors who don\'t want to compare click the recommended option. Without a visible "top pick" label or a highlighted card, they hesitate or leave.',
+          suggestion: `Give ${top.name}'s card a badge like "${lang === 'fr' ? 'Notre choix n°1' : 'Our #1 pick'}" and a stronger frame or background.`,
+          suggestedCopy: [{ lang, text: lang === 'fr' ? 'Notre choix n°1' : 'Our #1 pick' }],
+          evidence: [{ selector: top.selector, textExcerpt: excerpt(top.text, 100) }],
+          effort: 'xs',
+          impact: 3,
+          confidence: 0.7,
+          fix: { type: 'html-patch', available: false },
+        }),
+      );
+    }
+  }
+
+  // Reviews without pros and cons: the fastest way for a reader to decide.
+  if (page.reviews.length >= 2) {
+    const prosCons = /(avantages|inconv[ée]nients|points? forts?|points? faibles?|on aime|on aime moins|\bpros\b|\bcons\b|strengths|weaknesses|f[öo]rdelar|nackdelar|fordele|ulemper|voordelen|nadelen|vantagens|desvantagens|pontos (fortes|fracos))/i;
+    const without = page.reviews.filter((r) => !prosCons.test(r.text) && r.blocks.filter((b) => b.tag === 'li').length < 3);
+    if (without.length === page.reviews.length) {
+      out.push(
+        finding({
+          ruleId: 'cro.review-no-pros-cons',
+          severity: 'medium',
+          title: `None of the ${without.length} reviews has a pros and cons list`,
+          explanation: 'Most visitors skim. A short pros/cons list lets them compare brands in seconds; long paragraphs hide the reasons to click.',
+          suggestion: 'Add 3 pros and 1–2 cons as bullet points at the top of each review, followed by the offer button.',
+          suggestedCopy: lang === 'fr' ? [{ lang, text: 'Points forts / Points faibles' }] : [{ lang, text: 'Pros / Cons' }],
+          evidence: without.slice(0, 3).map((r) => ({ selector: r.heading.selector, textExcerpt: r.heading.text })),
+          effort: 's',
+          impact: 3,
+          confidence: 0.75,
+        }),
+      );
+    }
+  }
+
+  // Walls of text: very long paragraphs get skipped, and the reader drifts away from the offer.
+  const walls = page.blocks.filter((b) => b.tag === 'p' && b.text.split(/\s+/).length > 120);
+  if (walls.length) {
+    out.push(
+      finding({
+        ruleId: 'cro.wall-of-text',
+        severity: 'low',
+        title: `${walls.length} paragraph${walls.length > 1 ? 's are' : ' is'} over 120 words`,
+        explanation: 'On a phone a 120-word paragraph fills the whole screen. Readers skim past it and miss the argument for the offer.',
+        suggestion: 'Split long paragraphs into 2–3 sentence chunks, and turn lists of facts (payment methods, providers) into bullets.',
+        evidence: walls.slice(0, 3).map((b) => ({ selector: b.selector, textExcerpt: excerpt(b.text, 100), metric: { name: 'words', value: b.text.split(/\s+/).length, target: 120 } })),
+        effort: 's',
+        impact: 2,
+        confidence: 0.8,
+      }),
+    );
+  }
+
   return out;
 }
 
-export const croAnalyzer: Analyzer = { id: 'cro', version: '0.1.0', run: runCro };
+export const croAnalyzer: Analyzer = { id: 'cro', version: '0.2.0', run: runCro };
 export default croAnalyzer;

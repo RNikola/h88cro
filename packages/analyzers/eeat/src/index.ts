@@ -1,4 +1,4 @@
-import { finding, type Finding } from '@h88cro/core';
+import { authorNameFit, finding, languageName, type Finding } from '@h88cro/core';
 import type { Analyzer, AnalyzerContext } from '@h88cro/page-model';
 
 const DISCLOSURE_RE = /(publicit[ée]|commission|affili[ée]|affiliation|liens? partenaires?|partenariat|sponsoris|advertis|affiliate|we may earn|we earn a|reklam|annonce|samarbete|provisie|comissão|publicidade)/i;
@@ -35,6 +35,27 @@ export function runEeat(ctx: AnalyzerContext): Finding[] {
   if (!page.author) {
     out.push(finding({ ruleId: 'eeat.no-author', severity: 'high', title: 'No author is shown', explanation: 'Players and Google trust reviews more when a named, real expert stands behind them.', suggestion: 'Show the author\'s name and photo near the title, linked to an author page with their experience.', effort: 's', impact: 3, confidence: 0.8 }));
   } else {
+    // A French page signed by "Ethan Walker" reads as translated or outsourced: local readers trust a local voice.
+    const lang = ctx.lang ?? page.htmlLang?.split('-')[0];
+    const fit = lang ? authorNameFit(page.author.name, lang) : undefined;
+    if (fit && !fit.fits) {
+      out.push(
+        finding({
+          ruleId: 'eeat.author-not-local',
+          severity: 'high',
+          title: `Author "${page.author.name}" doesn't sound ${languageName(lang!)}-speaking`,
+          explanation: `${fit.reason}. On a ${languageName(lang!)} page, a foreign-sounding author makes the review feel translated or written from abroad, which lowers trust and clicks. Local players expect a local expert.`,
+          suggestion: fit.suggestions.length
+            ? `Have the page written or reviewed by a native ${languageName(lang!)} author and sign it with their real name, e.g. a writer like ${fit.suggestions.join(', ')}. Use a real person with a real author page; never invent one.`
+            : `Have the page written or reviewed by a native ${languageName(lang!)} author and sign it with their real name.`,
+          evidence: [{ selector: page.author.selector, textExcerpt: page.author.byline ?? page.author.name }],
+          effort: 'm',
+          impact: 4,
+          confidence: 0.75,
+          key: page.author.name,
+        }),
+      );
+    }
     if (!page.author.href) {
       out.push(finding({ ruleId: 'eeat.author-no-page', severity: 'medium', title: `Author "${page.author.name}" has no author page`, explanation: 'A linked author page with credentials and other articles is a strong expertise signal.', suggestion: 'Link the author name to a dedicated author page.', evidence: [{ selector: page.author.selector, textExcerpt: page.author.byline }], effort: 's', impact: 2, confidence: 0.8 }));
     }

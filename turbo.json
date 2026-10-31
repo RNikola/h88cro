@@ -9,7 +9,7 @@
       "dependsOn": ["^typecheck"]
     },
     "test": {
-      "dependsOn": []
+      "dependsOn": ["^test"]
     }
   }
 }

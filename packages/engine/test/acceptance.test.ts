@@ -118,8 +118,11 @@ const REAL_PAGES: { file: string; expected: string[]; titles: string[]; verified
       'performance.img-missing-dimensions',
       'seo.affiliate-missing-sponsored',
       'eeat.no-affiliate-disclosure',
+      'eeat.author-not-local',
+      'cro.top-pick-not-highlighted',
+      'cro.review-no-pros-cons',
     ],
-    titles: ['Tower Casino\'s review says "deuxième place" but it is #1', 'The FAQ names Godz Casino', 'claimed for VipLuck Casino'],
+    titles: ['Author "Alina Sazonova"', 'Tower Casino\'s review says "deuxième place" but it is #1', 'The FAQ names Godz Casino', 'claimed for VipLuck Casino'],
     verifiedSerious: [
       'consistency.rank-text-mismatch',
       'consistency.faq-number-one-mismatch',
@@ -127,6 +130,7 @@ const REAL_PAGES: { file: string; expected: string[]; titles: string[]; verified
       'cro.missing-cta-after-review',
       'cro.card-missing-terms',
       'seo.affiliate-missing-sponsored',
+      'eeat.author-not-local',
     ],
   },
   {
@@ -149,8 +153,12 @@ const REAL_PAGES: { file: string; expected: string[]; titles: string[]; verified
       'cro.card-missing-terms',
       'seo.affiliate-missing-sponsored',
       'eeat.no-person-schema',
+      'eeat.author-not-local',
+      'cro.top-pick-not-highlighted',
+      'cro.review-no-pros-cons',
     ],
     titles: [
+      'Author "Ethan Walker"',
       'Mad Casino\'s review says "médaille d\'argent" but it is #4',
       'VipLuck Casino\'s review says "deuxième marche" but it is #5',
       'The FAQ names Godz Casino',
@@ -166,6 +174,7 @@ const REAL_PAGES: { file: string; expected: string[]; titles: string[]; verified
       'cro.missing-cta-after-review',
       'cro.card-missing-terms',
       'seo.affiliate-missing-sponsored',
+      'eeat.author-not-local',
     ],
   },
 ];

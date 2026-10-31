@@ -4,6 +4,7 @@ import { app, BrowserWindow, Menu, net, protocol, shell, type IpcMainInvokeEvent
 import { registerIpc } from './ipc';
 import { ScanQueue } from './queue';
 import { Services } from './services';
+import { Updater } from './updater';
 
 // Screenshots are served to the renderer through a private, read-only protocol limited to the scans folder.
 protocol.registerSchemesAsPrivileged([{ scheme: 'h88-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -96,13 +97,16 @@ app.whenReady().then(async () => {
   });
 
   const queue = new ScanQueue(svc, (event, data) => win?.webContents.send(event, data));
-  registerIpc(svc, queue, () => win, isTrustedSender);
+  const updater = new Updater((state) => win?.webContents.send('update:status', state));
+  svc.update = () => updater.state;
+  registerIpc(svc, queue, updater, () => win, isTrustedSender);
   if (await svc.db.getProfile()) {
     queue.setConcurrency((await svc.settings()).concurrency);
     await queue.resume();
   }
   buildMenu((to) => win?.webContents.send('menu:navigate', { to }));
   createWindow();
+  updater.start();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

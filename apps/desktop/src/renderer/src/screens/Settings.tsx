@@ -5,6 +5,7 @@ import { Button, Card, Field, inputClass } from '@h88cro/ui';
 import type { AppState, Settings } from '../../../shared/ipc';
 import { formatBytes, invoke } from '../api';
 import { ClaudeKeyForm } from '../components/ClaudeKeyForm';
+import { UpdateSettings } from '../components/UpdateBanner';
 
 export function SettingsScreen({ state, onChanged }: { state: AppState; onChanged: () => void }) {
   const [s, setS] = useState<Settings>(state.settings);
@@ -99,7 +100,7 @@ export function SettingsScreen({ state, onChanged }: { state: AppState; onChange
 
       <Card className="space-y-2">
         <h2 className="font-medium">Updates</h2>
-        <p className="text-sm text-muted">Version {state.version}. Automatic updates arrive with signed builds in the next release.</p>
+        <UpdateSettings initial={state.update} />
       </Card>
     </div>
   );

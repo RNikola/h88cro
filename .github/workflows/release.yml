@@ -1,19 +1,18 @@
 name: Build installers
 
-# Phase 1: unsigned builds for internal testing (brief §13). Runs manually, on v* tags, and on pull requests
-# so reviewers can download and try the installers from the run's artifacts.
+# Unsigned builds (brief §13).
+# - Pull requests: build the installers and attach them to the run as artifacts, for testing.
+# - Push to main (a merged PR): build, then publish a GitHub Release v0.1.<run number>.
+#   Installed apps check that release feed and update themselves (Windows) or offer the new download (Mac).
 on:
   workflow_dispatch:
   pull_request:
   push:
-    tags: ['v*']
+    branches: [main]
 
 concurrency:
   group: installers-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -28,6 +27,8 @@ jobs:
             script: dist:win
             artifact: '*.exe'
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -36,6 +37,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Set the release version
+        if: github.event_name != 'pull_request'
+        shell: bash
+        working-directory: apps/desktop
+        # Same number for both OS jobs of a run, always higher than the last release.
+        run: npm pkg set version="0.1.${{ github.run_number }}"
       - name: Build installer (unsigned)
         run: pnpm --filter @h88cro/desktop ${{ matrix.script }} --publish never
         env:
@@ -46,5 +53,34 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: h88cro-${{ matrix.os }}
-          path: apps/desktop/release/*/${{ matrix.artifact }}
+          # Installer, plus the update metadata and blockmaps the in-app updater reads.
+          path: |
+            apps/desktop/release/*/${{ matrix.artifact }}
+            apps/desktop/release/*/*.zip
+            apps/desktop/release/*/*.blockmap
+            apps/desktop/release/*/latest*.yml
           if-no-files-found: error
+
+  # Publish only after both installers built and passed the secret scan.
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: 0.1.${{ github.run_number }}
+        run: |
+          ls -R dist
+          gh release create "v$VERSION" dist/*/* \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "H88CRO $VERSION" \
+            --notes "Unsigned build from ${{ github.sha }}. Installed apps pick this up automatically."

@@ -600,11 +600,27 @@ function extractDates($: CheerioAPI): DateMention[] {
 }
 
 function extractAuthor($: CheerioAPI): PageModel['author'] {
+  // 1. An explicit name element ("author-name", itemprop=name inside an author block).
+  const named = $('[class*="author-name"]:not([class*="row"]), [class*="author"] [itemprop="name"], [itemprop="author"] [itemprop="name"], [rel="author"]')
+    .filter((_, e) => /^[\p{Lu}][\p{L}'.-]+(\s+[\p{L}'.-]+){0,3}$/u.test(clean($(e).text())))
+    .first();
+  if (named.length) {
+    const box = named.closest('[class*="author"], [itemprop="author"]');
+    const link = named.is('a') ? named : named.find('a').first();
+    return {
+      name: clean(named.text()).slice(0, 80),
+      byline: clean((box.length ? box : named).text()).slice(0, 200),
+      selector: selectorFor($, named.get(0) as Element),
+      href: link.attr('href') && !/^mailto:|email-protection/.test(link.attr('href')!) ? link.attr('href') : box.find('a[href]:not([href^="mailto:"]):not([href*="email-protection"])').first().attr('href'),
+    };
+  }
+  // 2. A byline or author block: take its first link or heading, skipping e-mail buttons.
   const el = $('[rel="author"], [itemprop="author"], [class*="author"], [class*="byline"]').first();
   if (el.length) {
-    const nameEl = el.is('a') ? el : el.find('a').first().length ? el.find('a').first() : el;
+    const candidates = el.is('a') ? el : el.find('a:not([href^="mailto:"]):not([href*="email-protection"]), h2, h3, h4, strong, b');
+    const nameEl = candidates.length ? candidates.first() : el;
     const name = clean(nameEl.text()).replace(/^(par|by|écrit par|written by|auteur\s*:)\s*/i, '').split(/\s*[,|–—]\s*/)[0]!;
-    if (name) return { name: name.slice(0, 80), byline: clean(el.text()).slice(0, 200), selector: selectorFor($, el.get(0) as Element), href: nameEl.attr('href') };
+    if (name && /^[\p{Lu}]/u.test(name)) return { name: name.slice(0, 80), byline: clean(el.text()).slice(0, 200), selector: selectorFor($, el.get(0) as Element), href: nameEl.is('a') ? nameEl.attr('href') : undefined };
   }
   let found: PageModel['author'];
   $('p, span, div, small').each((_, e) => {

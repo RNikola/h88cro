@@ -1,6 +1,8 @@
 appId: com.h88cro.desktop
 productName: H88CRO
 executableName: h88cro
+# No spaces in file names: GitHub renames them on upload, which would break the update metadata.
+artifactName: ${productName}-${version}-${arch}.${ext}
 copyright: Copyright © 2026 H88CRO
 directories:
   output: release/${version}
@@ -20,6 +22,9 @@ mac:
   target:
     - target: dmg
       arch: [universal]
+    # The zip carries the update metadata (latest-mac.yml); the app links users to the new .dmg.
+    - target: zip
+      arch: [universal]
   hardenedRuntime: true
   # Phase 1 ships unsigned builds for internal testing (brief §13). Signing + notarization in Phase 2.
   identity: null
@@ -29,6 +34,7 @@ win:
     - target: nsis
       arch: [x64]
 nsis:
+  artifactName: ${productName}-Setup-${version}.${ext}
   # Per-user install: no admin rights needed (brief §12).
   perMachine: false
   oneClick: false
@@ -41,8 +47,8 @@ linux:
   icon: build/icon.png
   target: [dir]
 publish:
-  # Auto-update feed (Phase 2): GitHub Releases on a release repo.
+  # Update feed: GitHub Releases of this (public) repo. The app reads latest.yml / latest-mac.yml from the newest release.
   provider: github
   owner: RNikola
   repo: h88cro
-  releaseType: draft
+  releaseType: release

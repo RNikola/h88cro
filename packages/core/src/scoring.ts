@@ -2,16 +2,17 @@ import type { Effort, Finding, ModuleId, PageType, Severity } from './finding.js
 
 /** Default module weights (brief §6). Admins can override them per page type. */
 export const DEFAULT_WEIGHTS: Record<ModuleId, number> = {
-  cro: 22,
+  // Conversion carries the most weight: it is what the page is for.
+  cro: 28,
   consistency: 14,
   language: 12,
-  performance: 12,
-  seo: 12,
+  performance: 10,
+  seo: 10,
   eeat: 10,
   design: 8,
   market: 6,
-  links: 2,
-  a11y: 2,
+  links: 1,
+  a11y: 1,
   benchmark: 0,
 };
 

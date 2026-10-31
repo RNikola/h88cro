@@ -1,3 +1,4 @@
+import { countryName, currencyExample, currencyForCountry, LANGUAGE_CODES, languageName, numberFormat, quotesFor } from './locales.js';
 /**
  * Seed market profiles (brief §7). These are starting hypotheses only:
  * market owners must validate them before go-live. Phase 3 moves them into
@@ -206,11 +207,43 @@ export const SEED_MARKETS: MarketProfile[] = [
 export function getMarket(id: string | undefined): MarketProfile | undefined {
   if (!id) return undefined;
   const lower = id.toLowerCase();
-  return (
+  const seeded =
     SEED_MARKETS.find((m) => m.id.toLowerCase() === lower) ??
-    SEED_MARKETS.find((m) => m.market.toLowerCase() === lower) ??
-    SEED_MARKETS.find((m) => m.languages[0] === lower.split('-')[0])
-  );
+    (lower.includes('-') ? undefined : SEED_MARKETS.find((m) => m.market.toLowerCase() === lower));
+  if (seeded) return seeded;
+  const [lang, country] = lower.split('-');
+  if (lang && country && LANGUAGE_CODES.includes(lang) && currencyForCountry(country)) return genericMarket(lang, country.toUpperCase());
+  return SEED_MARKETS.find((m) => m.languages[0] === lang);
+}
+
+/** A basic profile for any language–country pair without a hand-written one: number, currency and quote formats from Intl. */
+export function genericMarket(lang: string, country: string): MarketProfile {
+  const locale = `${lang}-${country}`;
+  const currency = currencyForCountry(country) ?? 'EUR';
+  const nf = numberFormat(locale);
+  return {
+    id: locale,
+    market: country,
+    languages: [lang],
+    currency,
+    currencyExample: currencyExample(locale, currency),
+    decimalSeparator: nf.decimal,
+    thousandsSeparator: nf.group,
+    quoteStyle: quotesFor(lang),
+    paymentMethods: [],
+    playerMotivations: [],
+    toneAndRegister: `Write as a native ${languageName(lang)} speaker in ${countryName(country)} would.`,
+    trustSignals: [],
+    glossary: [],
+    notes: 'Generic profile: formats come from standard locale data. No market-specific glossary yet.',
+    version: 0,
+  };
+}
+
+/** Markets offered in the scan picker: the hand-written ones first, then every language–country pair on demand. */
+export function marketLabel(id: string): string {
+  const [lang, country] = id.split('-');
+  return country ? `${languageName(lang!)} · ${countryName(country)}` : languageName(lang!);
 }
 
 export type MarketGuess = { marketId?: string; lang?: string; confidence: number; signals: string[] };
@@ -249,8 +282,17 @@ export function detectMarket(input: { htmlLang?: string; url?: string; text?: st
   if (!country && baseLang) {
     const byLang: Record<string, string> = { fr: 'FR', sv: 'SE', da: 'DK', nl: 'NL', pt: 'PT', th: 'TH', en: 'GB' };
     country = byLang[baseLang];
+    if (!country) {
+      try {
+        country = new Intl.Locale(baseLang).maximize().region; // de → DE, es → ES, sr → RS
+      } catch {
+        /* unknown language tag */
+      }
+    }
   }
-  const market = SEED_MARKETS.find((m) => m.market === country && (!baseLang || m.languages.includes(baseLang))) ??
+  const market =
+    SEED_MARKETS.find((m) => m.market === country && (!baseLang || m.languages.includes(baseLang))) ??
+    (baseLang && country ? getMarket(`${baseLang}-${country}`) : undefined) ??
     SEED_MARKETS.find((m) => m.market === country);
   if (!lang && market) lang = market.languages[0];
   return { marketId: market?.id, lang: lang?.split('-')[0], confidence: signals.length >= 2 ? 0.9 : signals.length ? 0.6 : 0.2, signals };
