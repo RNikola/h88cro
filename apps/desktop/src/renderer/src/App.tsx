@@ -11,8 +11,9 @@ import { Dashboard } from './screens/Dashboard';
 import { NewScan } from './screens/NewScan';
 import { Report } from './screens/Report';
 import { SettingsScreen } from './screens/Settings';
+import { Sites } from './screens/Sites';
 
-export type Route = { name: 'dashboard' } | { name: 'new-scan' } | { name: 'report'; id: string } | { name: 'settings' };
+export type Route = { name: 'dashboard' } | { name: 'new-scan' } | { name: 'report'; id: string } | { name: 'settings' } | { name: 'sites' };
 export type Navigate = (r: Route) => void;
 
 export function App() {
@@ -68,6 +69,7 @@ export function App() {
       {route.name === 'dashboard' && <Dashboard navigate={navigate} />}
       {route.name === 'new-scan' && <NewScan navigate={navigate} state={state} />}
       {route.name === 'report' && <Report id={route.id} navigate={navigate} />}
+      {route.name === 'sites' && <Sites state={state} navigate={navigate} />}
       {route.name === 'settings' && <SettingsScreen state={state} onChanged={() => void refetch()} />}
       {paletteOpen && <CommandPalette navigate={navigate} onClose={() => setPaletteOpen(false)} />}
     </Shell>

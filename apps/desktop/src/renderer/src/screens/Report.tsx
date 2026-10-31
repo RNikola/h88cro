@@ -1,11 +1,42 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban, Copy, Download, Eye, GitPullRequest, MessageSquare, Sparkles, Wand2, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban, Copy, Download, Eye, MessageSquare, Sparkles, Wand2, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { MODULE_LABELS, POSSIBLE_CONFIDENCE_THRESHOLD, SEVERITIES, type Finding, type ModuleId } from '@h88cro/core';
 import { Badge, Button, Card, ScoreRing, SeverityBadge, Spinner, cx, inputClass, scoreColor } from '@h88cro/ui';
 import type { ScanDetail } from '../../../shared/ipc';
 import type { Navigate } from '../App';
 import { invoke, useScan } from '../api';
+import { FixBar } from '../components/FixBar';
+import { FixModal } from '../components/FixModal';
+
+type Alternatives = { loading?: boolean; items?: { text: string; why: string; translationForReviewer: string }[]; error?: string };
+
+function AlternativesPanel({ a }: { a: Alternatives }) {
+  if (a.loading)
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted">
+        <Spinner className="h-3 w-3" /> Claude is writing alternatives…
+      </div>
+    );
+  return (
+    <div className="space-y-2">
+      {a.error && <p className="text-xs text-muted">{a.error}</p>}
+      {a.items?.length === 0 && !a.error && <p className="text-xs text-muted">No alternatives for this issue.</p>}
+      {a.items?.map((c, i) => (
+        <div key={i} className="flex items-start gap-2 rounded-lg border border-accent-1/30 bg-accent-1/5 px-3 py-2 text-sm">
+          <div className="flex-1">
+            <div>{c.text}</div>
+            {c.translationForReviewer && <div className="mt-1 text-xs text-muted">{c.translationForReviewer}</div>}
+            <div className="mt-1 text-xs text-muted">{c.why}</div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => void navigator.clipboard.writeText(c.text)} aria-label="Copy">
+            <Copy size={14} />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const VIEWPORT_W = { mobile: 390, desktop: 1440 } as const;
 const EFFORT_LABEL = { xs: 'a few minutes', s: 'under an hour', m: 'a few hours', l: 'a day or more' } as const;
@@ -43,8 +74,18 @@ function RegionViewer({ scan, region, onClose }: { scan: ScanDetail; region: Reg
   );
 }
 
-function FindingCard({ f, scan, ignored, comments, onAction, onShowRegion }: { f: Finding; scan: ScanDetail; ignored?: string; comments: string[]; onAction: () => void; onShowRegion: (r: Region) => void }) {
+function FindingCard({ f, scan, ignored, comments, onAction, onShowRegion, selected, onSelect, onFix }: { f: Finding; scan: ScanDetail; ignored?: string; comments: string[]; onAction: () => void; onShowRegion: (r: Region) => void; selected: boolean; onSelect: (on: boolean) => void; onFix: () => void }) {
   const [mode, setMode] = useState<'ignore' | 'comment'>();
+  const [alts, setAlts] = useState<Alternatives>();
+  const suggest = async () => {
+    setAlts({ loading: true });
+    try {
+      const r = await invoke('suggest:alternatives', { scanId: scan.id, findingId: f.id });
+      setAlts({ items: r.alternatives, error: r.error });
+    } catch (e) {
+      setAlts({ error: (e as Error).message });
+    }
+  };
   const [text, setText] = useState('');
   const possible = f.source === 'llm' && f.confidence < POSSIBLE_CONFIDENCE_THRESHOLD;
   const region = f.evidence.find((e) => e.screenshotRegion)?.screenshotRegion;
@@ -52,6 +93,7 @@ function FindingCard({ f, scan, ignored, comments, onAction, onShowRegion }: { f
   return (
     <Card className={cx('space-y-3', ignored && 'opacity-50')}>
       <div className="flex items-start gap-3">
+        <input type="checkbox" className="mt-1.5" checked={selected} onChange={(e) => onSelect(e.target.checked)} aria-label="Select for batch fix" />
         <SeverityBadge severity={f.severity} />
         <div className="min-w-0 flex-1">
           <h3 className="font-medium leading-snug">
@@ -115,14 +157,11 @@ function FindingCard({ f, scan, ignored, comments, onAction, onShowRegion }: { f
             <Eye size={14} /> Show on screenshot
           </Button>
         )}
-        <Button variant="secondary" size="sm" disabled title="Coming with the fix engine (Phase 2)">
+        <Button variant="secondary" size="sm" disabled={alts?.loading} onClick={() => void suggest()}>
           <Sparkles size={14} /> Suggest alternatives
         </Button>
-        <Button variant="secondary" size="sm" disabled title="Coming with the fix engine (Phase 2)">
+        <Button variant="secondary" size="sm" onClick={onFix}>
           <Wand2 size={14} /> Fix
-        </Button>
-        <Button variant="secondary" size="sm" disabled title="Coming with GitHub integration (Phase 2)">
-          <GitPullRequest size={14} /> Apply via PR
         </Button>
         {!ignored && (
           <Button variant="ghost" size="sm" onClick={() => setMode(mode === 'ignore' ? undefined : 'ignore')}>
@@ -133,6 +172,7 @@ function FindingCard({ f, scan, ignored, comments, onAction, onShowRegion }: { f
           <MessageSquare size={14} /> Comment
         </Button>
       </div>
+      {alts && <AlternativesPanel a={alts} />}
       {mode && (
         <form
           className="flex gap-2"
@@ -162,6 +202,8 @@ export function Report({ id, navigate }: { id: string; navigate: Navigate }) {
   const [region, setRegion] = useState<Region>();
   const [exporting, setExporting] = useState<string>();
   const [exportMsg, setExportMsg] = useState<string>();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [fixing, setFixing] = useState<string[]>();
 
   const actions = useMemo(() => {
     const ignored = new Map<string, string>();
@@ -243,6 +285,8 @@ export function Report({ id, navigate }: { id: string; navigate: Navigate }) {
       </Card>
       {exportMsg && <p className="text-xs text-muted">{exportMsg}</p>}
 
+      {scan.status === 'done' && <FixBar scanId={scan.id} navigate={navigate} />}
+
       <div className="grid grid-cols-6 gap-3">
         {scan.scores?.modules.map((m) => (
           <button key={m.module} onClick={() => setTab(m.module)} className={cx('rounded-xl border bg-panel p-3 text-left transition hover:border-accent-2/60', tab === m.module ? 'border-accent-2' : 'border-line')}>
@@ -306,10 +350,45 @@ export function Report({ id, navigate }: { id: string; navigate: Navigate }) {
             comments={actions.comments.get(f.id) ?? []}
             onAction={() => void qc.invalidateQueries({ queryKey: ['scan:get', id] })}
             onShowRegion={setRegion}
+            selected={selected.has(f.id)}
+            onSelect={(on) =>
+              setSelected((prev) => {
+                const next = new Set(prev);
+                if (on) next.add(f.id);
+                else next.delete(f.id);
+                return next;
+              })
+            }
+            onFix={() => setFixing([f.id])}
           />
         ))}
       </div>
       {region && <RegionViewer scan={scan} region={region} onClose={() => setRegion(undefined)} />}
+      {selected.size > 0 && (
+        <div className="sticky bottom-4 z-40 mx-auto flex w-fit items-center gap-3 rounded-xl border border-accent-2/50 bg-panel-2 px-4 py-2 shadow-lg">
+          <span className="text-sm">{selected.size} selected</span>
+          <Button size="sm" onClick={() => setFixing([...selected])}>
+            <Wand2 size={14} /> Fix selected
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set(list.map((f) => f.id)))}>
+            Select all in this tab
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
+      {fixing && (
+        <FixModal
+          scanId={scan.id}
+          findingIds={fixing}
+          onClose={() => setFixing(undefined)}
+          onApplied={() => {
+            setSelected(new Set());
+            void qc.invalidateQueries({ queryKey: ['fix:changes', scan.id] });
+          }}
+        />
+      )}
     </div>
   );
 }

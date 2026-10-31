@@ -6,6 +6,7 @@ import type { AppState, Settings } from '../../../shared/ipc';
 import { formatBytes, invoke } from '../api';
 import { ClaudeKeyForm } from '../components/ClaudeKeyForm';
 import { UpdateSettings } from '../components/UpdateBanner';
+import { GitHubForm } from '../components/GitHubForm';
 
 export function SettingsScreen({ state, onChanged }: { state: AppState; onChanged: () => void }) {
   const [s, setS] = useState<Settings>(state.settings);
@@ -59,6 +60,12 @@ export function SettingsScreen({ state, onChanged }: { state: AppState; onChange
         <Field label="LanguageTool server" hint="Optional. e.g. https://api.languagetool.org/v2 or a local server (http://localhost:8081/v2). Leave empty to skip.">
           <input className={inputClass} value={s.languageToolUrl} placeholder="https://api.languagetool.org/v2" onChange={(e) => setS({ ...s, languageToolUrl: e.target.value })} onBlur={() => void save({ languageToolUrl: s.languageToolUrl })} />
         </Field>
+      </Card>
+
+      <Card className="space-y-3">
+        <h2 className="font-medium">GitHub</h2>
+        <p className="text-sm text-muted">Lets H88CRO open pull requests with fixes in your landing-page repositories. Connect sites in the Sites screen.</p>
+        <GitHubForm login={state.github?.login} onChanged={onChanged} />
       </Card>
 
       <Card className="space-y-4">

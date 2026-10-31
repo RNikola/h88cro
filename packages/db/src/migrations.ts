@@ -84,4 +84,41 @@ export const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   );
   `,
+  `
+  CREATE TABLE site (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    url_prefix TEXT NOT NULL,
+    repo TEXT,
+    base_branch TEXT,
+    local_path TEXT,
+    auto_merge INTEGER NOT NULL DEFAULT 0,
+    push_branch INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE TABLE page_map (
+    site_id TEXT NOT NULL REFERENCES site(id) ON DELETE CASCADE,
+    url_path TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    PRIMARY KEY (site_id, url_path)
+  );
+  CREATE TABLE fix_change (
+    id TEXT PRIMARY KEY,
+    site_id TEXT REFERENCES site(id) ON DELETE SET NULL,
+    scan_id TEXT,
+    finding_ids TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    pr_number INTEGER,
+    url TEXT,
+    branch TEXT,
+    state TEXT NOT NULL,
+    message TEXT,
+    rescan_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX fix_change_scan_idx ON fix_change(scan_id);
+  `,
 ];

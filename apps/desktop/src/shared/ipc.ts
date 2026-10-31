@@ -34,6 +34,22 @@ export const SettingsSchema = z.object({
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
+export const SiteSchema = z
+  .object({
+    id: z.string().max(64).optional(),
+    name: z.string().min(1).max(120),
+    kind: z.enum(['github', 'local']),
+    urlPrefix: z.string().url().max(500),
+    repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, 'Use owner/name').max(200).optional(),
+    baseBranch: z.string().max(200).optional(),
+    localPath: z.string().max(4096).optional(),
+    autoMerge: z.boolean().default(false),
+    pushBranch: z.boolean().default(false),
+  })
+  .refine((s) => (s.kind === 'github' ? !!s.repo : !!s.localPath), { message: 'Choose a repository or a folder' });
+export type SiteInput = z.infer<typeof SiteSchema>;
+export type Site = Omit<SiteInput, 'id'> & { id: string; createdAt: string };
+
 export const ChannelSchemas = {
   'app:state': z.void(),
   'profile:create': z.object({ name: z.string().min(1).max(80), password: z.string().min(8).max(200) }),
@@ -57,6 +73,23 @@ export const ChannelSchemas = {
   'shell:openExternal': z.object({ url: z.string().url() }),
   'update:check': z.void(),
   'update:install': z.void(),
+  'github:setToken': z.object({ token: z.string().min(10).max(400) }),
+  'github:clearToken': z.void(),
+  'github:repos': z.void(),
+  'site:list': z.void(),
+  'site:save': SiteSchema,
+  'site:delete': z.object({ id: z.string().max(64) }),
+  'site:pickFolder': z.void(),
+  'fix:target': z.object({ scanId: z.string().max(64) }),
+  'fix:setFile': z.object({ scanId: z.string().max(64), filePath: z.string().min(1).max(1000) }),
+  'fix:propose': z.object({ scanId: z.string().max(64), findingIds: z.array(z.string().max(200)).min(1).max(50) }),
+  'fix:edit': z.object({ sessionId: z.string().max(64), patch: z.number().int().min(0), edit: z.number().int().min(0), replace: z.string().max(200_000) }),
+  'fix:preview': z.object({ sessionId: z.string().max(64), device: z.enum(['mobile', 'desktop']) }),
+  'fix:apply': z.object({ sessionId: z.string().max(64), autoMerge: z.boolean().optional() }),
+  'fix:changes': z.object({ scanId: z.string().max(64) }),
+  'fix:refresh': z.void(),
+  'fix:rescan': z.object({ scanId: z.string().max(64) }),
+  'suggest:alternatives': z.object({ scanId: z.string().max(64), findingId: z.string().max(200) }),
 } as const;
 export type Channel = keyof typeof ChannelSchemas;
 
@@ -85,6 +118,7 @@ export type AppState = {
   version: string;
   freeDiskBytes?: number;
   update: UpdateState;
+  github?: { login: string };
 };
 
 export type ScanListItem = {
@@ -115,6 +149,49 @@ export type ScanDetail = ScanListItem & {
   devices: string[];
 };
 
+export type GitHubAccount = { login: string } | undefined;
+export type RepoOption = { fullName: string; defaultBranch: string; private: boolean; canPush: boolean };
+
+/** Where a fix for a scanned page will be written. */
+export type FixTarget = {
+  /** site = connected repo/folder; file = the scanned local file; page = the scanned page HTML only (download the fixed copy). */
+  mode: 'site' | 'file' | 'page';
+  site?: Site;
+  urlPath: string;
+  filePath?: string;
+  suggestions: { path: string; score: number }[];
+  error?: string;
+  hasClaudeKey: boolean;
+};
+
+export type FixSession = {
+  id: string;
+  scanId: string;
+  target: FixTarget;
+  items: { findingId: string; title: string; ok: boolean; source?: 'builtin' | 'claude' | 'manual'; summary?: string; error?: string }[];
+  patches: { path: string; diff: string; edits: { find: string; replace: string; note?: string }[]; failed: string[] }[];
+  recheck?: { message: string; verified: boolean; results: { findingId: string; fixed?: boolean }[]; introduced: string[] };
+  summary: string;
+  notes: string[];
+  canApply: boolean;
+  autoMerge: boolean;
+  costUsd: number;
+};
+
+export type FixChange = {
+  id: string;
+  findingIds: string[];
+  summary: string;
+  kind: 'pr' | 'local' | 'file';
+  url?: string | null;
+  prNumber?: number | null;
+  branch?: string | null;
+  state: string;
+  message?: string | null;
+  createdAt: string;
+  rescanId?: string | null;
+};
+
 export type ChannelResult = {
   'app:state': AppState;
   'profile:create': AppState;
@@ -138,6 +215,23 @@ export type ChannelResult = {
   'shell:openExternal': void;
   'update:check': UpdateState;
   'update:install': void;
+  'github:setToken': { ok: boolean; login?: string; error?: string };
+  'github:clearToken': void;
+  'github:repos': RepoOption[];
+  'site:list': Site[];
+  'site:save': Site;
+  'site:delete': void;
+  'site:pickFolder': string | undefined;
+  'fix:target': FixTarget;
+  'fix:setFile': FixTarget;
+  'fix:propose': FixSession;
+  'fix:edit': FixSession;
+  'fix:preview': { before: string; after: string; focused: boolean };
+  'fix:apply': FixChange;
+  'fix:changes': FixChange[];
+  'fix:refresh': void;
+  'fix:rescan': { id: string };
+  'suggest:alternatives': { alternatives: { text: string; why: string; translationForReviewer: string }[]; error?: string };
 };
 
 export type Events = {
@@ -146,6 +240,7 @@ export type Events = {
   'engine:progress': EngineState;
   'menu:navigate': { to: 'new-scan' | 'dashboard' | 'settings' | 'palette' };
   'update:status': UpdateState;
+  'fix:changed': { scanId?: string | null };
 };
 export type EventName = keyof Events;
-export const EVENT_NAMES: EventName[] = ['scan:progress', 'scan:updated', 'engine:progress', 'menu:navigate', 'update:status'];
+export const EVENT_NAMES: EventName[] = ['scan:progress', 'scan:updated', 'engine:progress', 'menu:navigate', 'update:status', 'fix:changed'];

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Gauge, Lock, Plus, Search, Settings } from 'lucide-react';
+import { Gauge, Globe, Lock, Plus, Search, Settings } from 'lucide-react';
 import { Button, cx } from '@h88cro/ui';
 import type { AppState } from '../../../shared/ipc';
 import type { Navigate, Route } from '../App';
@@ -30,6 +30,7 @@ export function Shell({ route, navigate, state, children, onLock, onOpenPalette 
         </Button>
         <nav className="space-y-1">
           {item({ name: 'dashboard' }, 'Dashboard', <Gauge size={16} />)}
+          {item({ name: 'sites' }, 'Sites', <Globe size={16} />)}
           {item({ name: 'settings' }, 'Settings', <Settings size={16} />)}
         </nav>
         <button onClick={onOpenPalette} className="mt-4 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs text-muted hover:text-fg">

@@ -69,6 +69,7 @@ export class Services {
       version: app.getVersion(),
       freeDiskBytes,
       update: this.update(),
+      github: this.unlocked && getSecret('github-login') ? { login: getSecret('github-login')! } : undefined,
     };
   }
 }

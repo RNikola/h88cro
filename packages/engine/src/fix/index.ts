@@ -154,3 +154,4 @@ export function rankFilesForPage(page: Pick<PageModel, 'title' | 'headings'> & {
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+export { renderFixPreview, visibleText } from './preview.js';
