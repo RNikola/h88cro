@@ -14,6 +14,8 @@ asarUnpack:
 # Chromium for Testing is NOT bundled: it is downloaded on first run (keeps the installer small).
 mac:
   icon: build/icon.icns
+  # Lighthouse pulls in oxc-parser's native binding (via Sentry); it is arch-specific by name, so let the universal merge keep it as is.
+  x64ArchFiles: "Contents/Resources/app.asar.unpacked/node_modules/@oxc-parser/**"
   category: public.app-category.developer-tools
   target:
     - target: dmg
