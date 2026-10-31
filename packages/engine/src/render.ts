@@ -26,6 +26,10 @@ export type RenderOutput = {
   layout: Partial<Record<Device, DeviceLayout>>;
   screenshots: { device: Device; kind: 'fold' | 'full'; path: string }[];
   warnings: string[];
+  /** Stylesheets that failed to load (e.g. a saved page opened offline). Layout from such a render is not trustworthy. */
+  missingStylesheets: string[];
+  /** True when the page's own CSS failed to load and nothing else styles it. */
+  unstyled?: boolean;
 };
 
 const MAX_FULL_PAGE_PX = 12000;
@@ -115,7 +119,7 @@ export async function renderPage(opts: {
   }
   await mkdir(opts.outDir, { recursive: true });
   const browser = opts.browser ?? (await launchBrowser(opts.executablePath));
-  const result: RenderOutput = { html: '', finalUrl: url, layout: {}, screenshots: [], warnings };
+  const result: RenderOutput = { html: '', finalUrl: url, layout: {}, screenshots: [], warnings, missingStylesheets: [] };
   try {
     for (const device of opts.devices) {
       const p = DEVICE_PROFILES[device];
@@ -123,6 +127,9 @@ export async function renderPage(opts: {
       await hardenContext(ctx, opts.target, warnings);
       const page = await ctx.newPage();
       page.on('dialog', (d) => void d.dismiss());
+      const cssFailed = (u: string) => !result.missingStylesheets.includes(u) && result.missingStylesheets.push(u);
+      page.on('requestfailed', (r) => r.resourceType() === 'stylesheet' && cssFailed(r.url()));
+      page.on('response', (r) => r.request().resourceType() === 'stylesheet' && r.status() >= 400 && cssFailed(r.url()));
       try {
         const res = await page.goto(url, { waitUntil: 'load', timeout: opts.timeoutMs ?? 45_000 });
         await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => warnings.push(`${device}: network did not go idle within 8 s`));
@@ -135,6 +142,14 @@ export async function renderPage(opts: {
         await page.screenshot({ path: fold, type: 'png' });
         result.screenshots.push({ device, kind: 'fold', path: fold });
 
+        // Fonts aside, a failed stylesheet only matters when nothing else styles the page (a saved page opened offline).
+        const realFailures = result.missingStylesheets.filter((u) => !/fonts\.(googleapis|gstatic)\.com|use\.typekit\.net|\/fonts?\//i.test(u));
+        if (realFailures.length && !result.unstyled) {
+          const rules = (await page.evaluate(
+            `Array.from(document.styleSheets).reduce((n, sh) => { try { return n + (/fonts\\.googleapis/.test(sh.href || '') ? 0 : sh.cssRules.length); } catch { return n; } }, 0)`,
+          )) as number;
+          if (rules === 0) result.unstyled = true;
+        }
         const cap = (await page.evaluate(CAPTURE_LAYOUT_JS)) as { elements: Record<string, unknown>; documentHeight: number };
         result.layout[device] = { device, viewport: p.viewport, documentHeight: cap.documentHeight, elements: cap.elements as DeviceLayout['elements'] };
 

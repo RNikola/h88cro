@@ -51,7 +51,7 @@ Later phases: Team mode (Supabase accounts, shared reports), Fix/PR/Suggest acti
 - **Chromium version:** the engine resolves the current stable Chrome for Testing build at first download and records its SHA-256; set `H88CRO_CHROME_BUILD` to pin a build.
 - **LanguageTool:** used through its HTTP API (public or self-hosted URL in Settings). Bundling a local LanguageTool server is not built yet.
 - **Local data:** the profile password gates the app, but the database is not encrypted at rest. The Claude API key is stored with the OS keychain (Electron `safeStorage`).
-- **Fixtures:** the acceptance test uses synthetic French toplist/clean pages. The real `pooky-fr.html` and `keira-fr.html` still need to be added (see `fixtures/EXPECTED_FINDINGS.md`).
+- **Fixtures:** besides the real `pooky-fr.html` and `keira-fr.html`, two synthetic pages cover rules the real pages don't trigger (see `fixtures/EXPECTED_FINDINGS.md`).
 
 ## Security
 

@@ -26,6 +26,11 @@ export async function scan(req: ScanRequest, onProgress: (p: ScanProgress) => vo
     onProgress({ stage: 'render', message: `Rendering ${req.devices.join(' + ')}…`, pct: 5 });
     rendered = await renderPage({ target: req.target, devices: req.devices, outDir: req.outDir, executablePath: req.chromiumPath });
     warnings.push(...rendered.warnings);
+    if (rendered.unstyled) {
+      warnings.push(
+        `The page's stylesheet did not load, so it rendered without its styles. Layout and above-the-fold checks were skipped. For a saved page, save it as "Webpage, Complete" or scan the live URL.`,
+      );
+    }
     html = rendered.html;
   } else if (req.target.kind === 'file') {
     html = await readFile(req.target.path, 'utf8');
@@ -42,7 +47,7 @@ export async function scan(req: ScanRequest, onProgress: (p: ScanProgress) => vo
     html,
     url: rendered?.finalUrl ?? url,
     isLocalFile,
-    layout: rendered?.layout,
+    layout: rendered && !rendered.unstyled ? rendered.layout : undefined,
     responseHeaders: rendered?.responseHeaders,
     statusCode: rendered?.statusCode,
   });
@@ -92,7 +97,7 @@ export async function scan(req: ScanRequest, onProgress: (p: ScanProgress) => vo
     const results = await Promise.allSettled([
       llm.languagePass(page, market, lang),
       llm.consistencyPass(page, market, lang),
-      llm.aboveFoldVision(page, market, lang, shots),
+      rendered?.unstyled ? Promise.resolve([]) : llm.aboveFoldVision(page, market, lang, shots),
     ]);
     for (const r of results) {
       if (r.status === 'fulfilled') findings.push(...r.value);

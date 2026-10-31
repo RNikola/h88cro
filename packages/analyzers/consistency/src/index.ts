@@ -1,9 +1,27 @@
 import { excerpt, finding, type Finding } from '@h88cro/core';
 import { findCountClaims, type Analyzer, type AnalyzerContext, type Brand } from '@h88cro/page-model';
 
+// "le bonus le plus généreux", "l'accueil le plus étoffé", "l'offre d'accueil la plus musclée", "biggest bonus"…
 const SUPERLATIVE_BONUS_RE =
-  /(bonus le plus (g[ée]n[ée]reux|[ée]lev[ée]|gros|important)|plus (gros|grand|g[ée]n[ée]reux) bonus|meilleur bonus|most generous bonus|biggest bonus|largest bonus|highest bonus|best bonus)/i;
-const NUMBER_ONE_RE = /(num[ée]ro\s*1|n[°º]\s?1\b|#1\b|number\s*(one|1)\b|premi[eè]re place|first place|notre (grand )?gagnant|top pick|meilleur casino)/i;
+  /((?:bonus|accueil|offre|pack|package)\b[^.!?;:]{0,25}?\b(?:le|la)\s+plus\s+(?:g[ée]n[ée]reu(?:x|se)|gros(?:se)?|[ée]lev[ée]e?|important(?:e)?|muscl[ée]e?|[ée]toff[ée]e?|copieu(?:x|se)|riche|large)|plus\s+(?:gros|grand|g[ée]n[ée]reux)\s+(?:bonus|pack|accueil)|meilleur bonus|most generous (?:bonus|welcome)|biggest (?:bonus|welcome)|largest (?:bonus|welcome)|highest bonus|best bonus)/i;
+const NUMBER_ONE_RE =
+  /(num[ée]ro\s*(1|un)\b|n[°º]\s?1\b|#1\b|number\s*(one|1)\b|premi[eè]re (place|marche)|first place|notre (grand )?gagnant|top pick|meilleur casino|en premier|en t[eê]te|(au )?sommet de|(le )?haut de (notre|ma|mon|la) (classement|s[ée]lection|liste)|top of (our|the|my) (list|ranking))/i;
+
+const COUNT_WORDS: Record<string, number> = {
+  un: 1, une: 1, deux: 2, duo: 2, tandem: 2, trois: 3, trio: 3, quatre: 4, quatuor: 4, cinq: 5, quintette: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10,
+  one: 1, two: 2, pair: 2, three: 3, four: 4, five: 5, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+/** Small counts mentioned in a short label (digits up to 20 and number words); years are ignored. */
+function numbersIn(text: string): Set<number> {
+  const out = new Set<number>();
+  for (const m of text.toLowerCase().matchAll(/\b(\d{1,4}|[\p{L}]+)\b/gu)) {
+    const w = m[1]!;
+    const n = /^\d+$/.test(w) ? Number(w) : COUNT_WORDS[w];
+    if (n !== undefined && n >= 2 && n <= 20) out.add(n);
+  }
+  return out;
+}
 
 function primaryRank(b: Brand): number | undefined {
   return b.card?.rank ?? b.table?.rank;
@@ -145,9 +163,14 @@ export function runConsistency(ctx: AnalyzerContext): Finding[] {
     const biggest = withBonus.find((c) => c.bonusAmount === max)!;
     for (const b of page.brands) {
       const r = b.review;
-      if (!r || !b.card?.bonusAmount) continue;
-      const m = r.text.match(SUPERLATIVE_BONUS_RE);
-      if (m && b.card.bonusAmount < max) {
+      if (!b.card?.bonusAmount || b.card.bonusAmount >= max) continue;
+      const places = [
+        ...(r ? [{ selector: r.heading.selector, text: `${r.heading.text}. ${r.text}` }] : []),
+        ...(b.table ? [{ selector: b.table.selector, text: b.table.text }] : []),
+      ];
+      for (const place of places) {
+        const m = place.text.match(SUPERLATIVE_BONUS_RE);
+        if (!m) continue;
         out.push(
           finding({
             ruleId: 'consistency.superlative-claim-mismatch',
@@ -155,11 +178,11 @@ export function runConsistency(ctx: AnalyzerContext): Finding[] {
             title: `"${m[0]}" is claimed for ${b.name}, but ${biggest.name} has the larger bonus`,
             explanation: `${b.name}'s bonus (${b.card.bonusAmount}) is smaller than ${biggest.name}'s (${max}). Unsupported superlatives are easy for readers to check and damage credibility.`,
             suggestion: `Remove the superlative or make it specific and true, e.g. "the lowest wagering requirement" if that is the real advantage.`,
-            evidence: [{ selector: r.heading.selector, textExcerpt: excerpt(r.text, 140) }],
+            evidence: [{ selector: place.selector, textExcerpt: excerpt(place.text.slice(Math.max(0, (m.index ?? 0) - 60)), 160) }],
             effort: 'xs',
             impact: 3,
             confidence: 0.85,
-            key: b.slug,
+            key: `${b.slug}|${place.selector}`,
             fix: { type: 'copy-replace', available: false },
           }),
         );
@@ -230,6 +253,33 @@ export function runConsistency(ctx: AnalyzerContext): Finding[] {
           effort: 'xs',
           impact: 2,
           confidence: 0.9,
+        }),
+      );
+    }
+    // Jump link exists but its label contradicts the heading on a number ("Le duo de tête" → "Le quintette de tête").
+    // Paraphrased labels are common and fine; only conflicting counts are flagged.
+    const stale = page.toc.items
+      .map((i) => ({ item: i, heading: page.headings.find((h) => h.id && h.id === decodeURIComponent(i.href.slice(1))) }))
+      .filter(({ item, heading }) => {
+        if (!heading) return false;
+        const a = numbersIn(item.text);
+        const b = numbersIn(heading.text);
+        return a.size > 0 && b.size > 0 && ![...a].some((n) => b.has(n));
+      });
+    if (stale.length) {
+      out.push(
+        finding({
+          ruleId: 'consistency.toc-heading-mismatch',
+          severity: 'medium',
+          title: stale.length > 1 ? `${stale.length} table-of-contents labels give a different number than their sections` : `A table-of-contents label gives a different number than its section`,
+          explanation: 'The table of contents and the section give different numbers, a sign that one was edited and the other forgotten.',
+          suggestion: stale.map(({ item, heading }) => `"${item.text}" → "${heading!.text}"`).join('; '),
+          evidence: stale.slice(0, 5).map(({ item, heading }) => ({ selector: heading!.selector, textExcerpt: `TOC: "${item.text}" · Heading: "${heading!.text}"` })),
+          effort: 'xs',
+          impact: 2,
+          confidence: 0.8,
+          key: 'labels',
+          fix: { type: 'copy-replace', available: false },
         }),
       );
     }

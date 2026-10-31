@@ -69,7 +69,11 @@ export function runLanguage(ctx: AnalyzerContext): Finding[] {
 
   if (lang && COMMA_DECIMAL.has(lang)) {
     // Decimal points where the language uses commas (9.8/10 → 9,8/10).
-    const hits = ctx.page.blocks.filter((b) => /(?<![\d.])\d{1,2}\.\d{1,2}(?=\s*\/\s*(?:10|5)\b|\s*(?:%|\s?sur\s10))/.test(b.text));
+    const hits: { selector: string; text: string }[] = ctx.page.blocks.filter((b) => /(?<![\d.])\d{1,2}\.\d{1,2}(?=\s*\/\s*(?:10|5)\b|\s*(?:%|\s?sur\s10))/.test(b.text));
+    // Bare scores on brand cards ("9.8" in a rating badge) count too.
+    for (const c of ctx.page.cards) {
+      if (c.ratingText && /^\s*\d{1,2}\.\d{1,2}\s*$/.test(c.ratingText)) hits.push({ selector: c.selector, text: c.ratingText.trim() });
+    }
     if (hits.length) {
       const sample = hits[0]!.text.match(/\d{1,2}\.\d{1,2}/)?.[0] ?? '9.8';
       out.push(
@@ -91,6 +95,26 @@ export function runLanguage(ctx: AnalyzerContext): Finding[] {
   }
 
   if (lang === 'fr') {
+    // French puts a (narrow no-break) space before %: "100%" → "100 %".
+    const pct = ctx.page.blocks.filter((b) => /\d%/.test(b.text));
+    const spaced = ctx.page.blocks.filter((b) => /\d[\s\u00a0\u202f]%/.test(b.text)).length;
+    if (pct.length) {
+      out.push(
+        finding({
+          ruleId: 'language.percent-spacing',
+          severity: 'low',
+          title: `Missing space before "%" (${pct.length} place${pct.length > 1 ? 's' : ''})`,
+          explanation: `French typography puts a space between the number and "%"${spaced ? `, and the rest of this page already does` : ''}. Mixed styles look unedited.`,
+          suggestion: 'Write "100 %" with a narrow no-break space.',
+          evidence: pct.slice(0, 5).map((b) => ({ selector: b.selector, textExcerpt: excerpt(b.text, 80) })),
+          effort: 'xs',
+          impact: 1,
+          confidence: spaced ? 0.9 : 0.75,
+          marketContextIds: mctx,
+        }),
+      );
+    }
+
     // Currency: "2000€" / "€2000" / "2000 €" → "2 000 €" (narrow no-break space before €).
     const bad: { b: TextBlock; m: string }[] = [];
     for (const b of ctx.page.blocks) {

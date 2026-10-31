@@ -82,9 +82,27 @@ export function runCro(ctx: AnalyzerContext): Finding[] {
     );
   }
 
-  // CTA after each review.
-  for (const r of page.reviews) {
-    if (r.hasCta) continue;
+  // CTA after each review. When every review lacks one it is a template problem: report it once.
+  const noCta = page.reviews.filter((r) => !r.hasCta);
+  if (noCta.length >= 3 && noCta.length === page.reviews.length) {
+    out.push(
+      finding({
+        ruleId: 'cro.missing-cta-after-review',
+        severity: 'high',
+        title: `None of the ${noCta.length} reviews ends with a button`,
+        explanation: "Readers decide while reading a review. Without a button at the end, they must scroll back up to the list, and many won't.",
+        suggestion: `Add a button to the brand's offer at the end of every review section (${noCta.map((r) => r.name).join(', ')}).`,
+        suggestedCopy: [{ lang, text: (SPECIFIC_CTA_BY_LANG[lang] ?? SPECIFIC_CTA_BY_LANG.en!)(noCta[0]!.name) }],
+        evidence: noCta.slice(0, 5).map((r) => ({ selector: r.heading.selector, textExcerpt: r.heading.text })),
+        effort: 's',
+        impact: 4,
+        confidence: 0.85,
+        key: 'all',
+        fix: { type: 'html-patch', available: false },
+      }),
+    );
+  }
+  for (const r of noCta.length >= 3 && noCta.length === page.reviews.length ? [] : noCta) {
     out.push(
       finding({
         ruleId: 'cro.missing-cta-after-review',
@@ -121,8 +139,25 @@ export function runCro(ctx: AnalyzerContext): Finding[] {
     );
   }
 
-  // Offer clarity on each card.
-  for (const c of page.cards) {
+  // Offer clarity on each card. When no card has terms it is a template problem: report it once.
+  const noTerms = page.cards.filter((c) => !c.hasTermsLink);
+  if (noTerms.length >= 3 && noTerms.length === page.cards.length) {
+    out.push(
+      finding({
+        ruleId: 'cro.card-missing-terms',
+        severity: 'high',
+        title: `None of the ${noTerms.length} brand cards links to the bonus terms`,
+        explanation: 'Hidden bonus terms are a trust risk. Players who discover the conditions only after signing up feel misled and churn.',
+        suggestion: 'Add a short terms line (wagering, minimum deposit) and a link to the full conditions to the card template.',
+        evidence: noTerms.slice(0, 5).map((c) => ({ selector: c.selector, textExcerpt: excerpt(c.text, 100) })),
+        effort: 's',
+        impact: 3,
+        confidence: 0.8,
+        key: 'all',
+      }),
+    );
+  }
+  for (const c of noTerms.length >= 3 && noTerms.length === page.cards.length ? [] : page.cards) {
     if (!c.hasTermsLink) {
       out.push(
         finding({

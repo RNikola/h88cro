@@ -22,13 +22,16 @@ if (!target) {
 }
 const pageType = (opt('type') ?? 'toplist') as PageType;
 if (!PAGE_TYPES.includes(pageType)) throw new Error(`--type must be one of ${PAGE_TYPES.join(', ')}`);
-const outDir = resolve(opt('out') ?? '.scan-output');
+const outDir = resolve(process.env.INIT_CWD ?? process.cwd(), opt('out') ?? '.scan-output');
 await mkdir(outDir, { recursive: true });
-const isFile = existsSync(target);
+// pnpm runs this from packages/engine; resolve paths against the directory the user ran it from.
+const userCwd = process.env.INIT_CWD ?? process.cwd();
+const localPath = resolve(userCwd, target);
+const isFile = existsSync(localPath);
 
 const result = await scan(
   {
-    target: isFile ? { kind: 'file', path: resolve(target) } : { kind: 'url', url: target },
+    target: isFile ? { kind: 'file', path: localPath } : { kind: 'url', url: target },
     marketId: opt('market'),
     devices: ['mobile', 'desktop'],
     pageType,

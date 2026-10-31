@@ -16,7 +16,7 @@ const MEDALS: [RegExp, number][] = [
 /** Find a rank claim in a review text, e.g. "deuxième place", "#2", "n°2", "silver medal". */
 export function findStatedRank(text: string): { rank: number; phrase: string } | undefined {
   const t = text;
-  let m = t.match(/\b(premi[eè]re|premier|deuxi[eè]me|seconde?|troisi[eè]me|quatri[eè]me|cinqui[eè]me|sixi[eè]me|septi[eè]me|huiti[eè]me|neuvi[eè]me|dixi[eè]me)\s+(place|position|rang)\b/i);
+  let m = t.match(/\b(premi[eè]re|premier|deuxi[eè]me|seconde?|troisi[eè]me|quatri[eè]me|cinqui[eè]me|sixi[eè]me|septi[eè]me|huiti[eè]me|neuvi[eè]me|dixi[eè]me)\s+(place|position|rang|marche)\b/i);
   if (m?.[1]) {
     const r = FR_ORDINALS[m[1].toLowerCase()];
     if (r) return { rank: r, phrase: m[0] };
