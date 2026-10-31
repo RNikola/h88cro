@@ -26,7 +26,7 @@ Unsigned installers: `pnpm dist:mac` (universal .dmg) and `pnpm dist:win` (x64 .
 
 ## Releases and updates
 
-- Users download from **https://github.com/RNikola/h88cro/releases/latest**. Install steps for end users: [docs/INSTALL.md](docs/INSTALL.md).
+- Users download from **https://github.com/RNikola/h88cro/releases/latest**. Moving the project to another GitHub: [docs/HANDOVER.md](docs/HANDOVER.md). Install steps for end users: [docs/INSTALL.md](docs/INSTALL.md).
 - Every merge to `main` runs **Build installers**: it builds both installers, scans them for secrets, then publishes release `v0.1.<run number>`. Pull requests build the installers as run artifacts only.
 - Installed apps check that feed at start-up and every 4 hours (`electron-updater`). Windows downloads in the background and offers **Restart to update**. macOS can only self-install signed apps, so until the builds are signed the Mac app shows **New version available → Download**.
 - Profile, settings, Claude key and scans live in the OS user-data folder, so updates and reinstalls keep them.
