@@ -1,0 +1,54 @@
+appId: com.h88cro.desktop
+productName: H88CRO
+executableName: h88cro
+# No spaces in file names: GitHub renames them on upload, which would break the update metadata.
+artifactName: ${productName}-${version}-${arch}.${ext}
+copyright: Copyright © 2026 H88CRO
+directories:
+  output: release/${version}
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+asarUnpack:
+  - "**/node_modules/lighthouse/**"
+# Chromium for Testing is NOT bundled: it is downloaded on first run (keeps the installer small).
+mac:
+  icon: build/icon.icns
+  # Lighthouse pulls in oxc-parser's native binding (via Sentry); it is arch-specific by name, so let the universal merge keep it as is.
+  x64ArchFiles: "Contents/Resources/app.asar.unpacked/node_modules/@oxc-parser/**"
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [universal]
+    # The zip carries the update metadata (latest-mac.yml); the app links users to the new .dmg.
+    - target: zip
+      arch: [universal]
+  hardenedRuntime: true
+  # Phase 1 ships unsigned builds for internal testing (brief §13). Signing + notarization in Phase 2.
+  identity: null
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  artifactName: ${productName}-Setup-${version}.${ext}
+  # Per-user install: no admin rights needed (brief §12).
+  perMachine: false
+  oneClick: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: H88CRO
+linux:
+  icon: build/icon.png
+  target: [dir]
+publish:
+  # Update feed: GitHub Releases of this (public) repo. The app reads latest.yml / latest-mac.yml from the newest release.
+  provider: github
+  owner: RNikola
+  repo: h88cro
+  releaseType: release

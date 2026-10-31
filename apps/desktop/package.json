@@ -1,0 +1,50 @@
+{
+  "name": "@h88cro/desktop",
+  "productName": "H88CRO",
+  "version": "0.1.0",
+  "private": true,
+  "description": "H88CRO desktop app",
+  "author": "H88CRO",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
+    "test": "vitest run --passWithNoTests",
+    "rebuild:native": "electron-builder install-app-deps",
+    "dist:mac": "electron-vite build && electron-builder --mac --universal",
+    "dist:win": "electron-vite build && electron-builder --win --x64",
+    "dist:linux-dir": "electron-vite build && electron-builder --linux --dir"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@puppeteer/browsers": "^3.2.6",
+    "electron-updater": "^6.8.11",
+    "lighthouse": "^13.6.0",
+    "playwright-core": "^1.64.1"
+  },
+  "devDependencies": {
+    "@h88cro/core": "workspace:*",
+    "@h88cro/db": "workspace:*",
+    "@h88cro/engine": "workspace:*",
+    "@h88cro/llm": "workspace:*",
+    "@h88cro/page-model": "workspace:*",
+    "@h88cro/ui": "workspace:*",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-query": "^5.105.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.2.0",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "lucide-react": "^1.65.0",
+    "p-queue": "^10.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.5",
+    "zod": "^4.6.7"
+  }
+}
