@@ -222,3 +222,143 @@ export async function verifyApiKey(apiKey: string, model = DEFAULT_ROUTING.class
     return { ok: false, error: (e as Error).message };
   }
 }
+
+// ── Fix engine and suggestions (brief §10) ─────────────────────────────────────
+
+const FixEditsSchema = z.object({
+  summary: z.string().describe('One short sentence describing the change, in the reviewer language'),
+  edits: z
+    .array(
+      z.object({
+        find: z.string().describe('Exact text copied from the file, long enough to occur exactly once'),
+        replace: z.string().describe('The full replacement for that text'),
+      }),
+    )
+    .describe('Minimal search/replace edits. Empty if the issue cannot be fixed in this file.'),
+  notes: z.array(z.string()).describe('Anything a developer should check, in the reviewer language'),
+});
+export type FixEdits = z.infer<typeof FixEditsSchema>;
+
+const AlternativesSchema = z.object({
+  alternatives: z
+    .array(
+      z.object({
+        text: z.string().describe('Ready-to-use replacement in the page language'),
+        why: z.string().describe('Why this works better, one sentence, in the reviewer language'),
+        translationForReviewer: z.string().describe('Translation into the reviewer language, or empty string if the same language'),
+      }),
+    )
+    .describe('Exactly 3 alternatives, best first'),
+});
+export type Alternatives = z.infer<typeof AlternativesSchema>['alternatives'];
+
+const FIX_SYSTEM = [
+  'You are a careful front-end developer and native-speaker copy editor fixing iGaming affiliate landing pages.',
+  'You receive one audit finding and the source of the file that renders the page (HTML, a template, Markdown or a data file such as JSON).',
+  'Return the smallest set of exact search/replace edits that fixes the finding in this file.',
+  'Rules:',
+  '- Each `find` must be copied verbatim from the file and must occur exactly once in it. Include a little surrounding text if needed to make it unique.',
+  '- Change only what the finding needs. Keep the existing formatting, indentation, quotes and markup style.',
+  '- Write any page copy in the page language and the market\'s conventions (number, currency and quote formats).',
+  '- Persuasion, not manipulation: never add fake urgency, invented ratings, invented people or hidden terms. If a fix would need facts you do not have (a real author, real bonus terms), leave a placeholder only if unavoidable and say so in notes.',
+  '- If the issue cannot be fixed in this file, return no edits and explain why in notes.',
+].join('\n');
+
+const SUGGEST_SYSTEM = [
+  'You are a senior iGaming conversion copywriter and native speaker of the page language.',
+  'Given one audit finding and the relevant page text, write 3 alternative versions of the affected text that fix the problem and convert better.',
+  'Persuasion, not manipulation: clear benefits, honest claims, visible terms. No fake urgency, no invented numbers or ratings.',
+  'Match the market\'s register, number, currency and quote formats. Keep each alternative about the same length as the original unless the finding is about length.',
+].join('\n');
+
+export type FixRequest = {
+  finding: Pick<Finding, 'ruleId' | 'title' | 'explanation' | 'suggestion' | 'evidence' | 'suggestedCopy'>;
+  path: string;
+  fileText: string;
+  market?: MarketProfile;
+  lang?: string;
+  uiLang?: string;
+};
+
+/** Cut a large file down to the region around the evidence, so the request stays small. */
+export function fileWindow(fileText: string, needles: string[], max = 24_000): string {
+  if (fileText.length <= max) return fileText;
+  const hit = needles.map((n) => (n ? fileText.indexOf(n.slice(0, 60)) : -1)).find((i) => i >= 0) ?? 0;
+  const start = Math.max(0, hit - max / 2);
+  return fileText.slice(start, start + max);
+}
+
+export class FixLlm {
+  private readonly client: Anthropic;
+  readonly budget: Budget;
+  constructor(private readonly opts: { apiKey: string; model?: string; budgetUsd?: number; log?: LlmOptions['log'] }) {
+    this.client = new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 });
+    this.budget = new Budget(opts.budgetUsd ?? 1);
+  }
+  private get model() {
+    return this.opts.model ?? DEFAULT_ROUTING.analysis;
+  }
+
+  private async parse<S extends z.ZodTypeAny>(task: string, system: string, schema: S, user: string, market?: MarketProfile): Promise<z.infer<S> | undefined> {
+    this.budget.check();
+    const model = this.model;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await this.client.beta.messages.parse({
+          model,
+          max_tokens: 16000,
+          ...(FALLBACK_MODELS.has(model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+          system: [
+            { type: 'text', text: system },
+            { type: 'text', text: marketBlock(market), cache_control: { type: 'ephemeral' } },
+          ],
+          output_config: { effort: 'medium', format: betaZodOutputFormat(schema) },
+          messages: [{ role: 'user', content: user }],
+        });
+        const cost = this.budget.add(res.model ?? model, res.usage.input_tokens + (res.usage.cache_creation_input_tokens ?? 0), res.usage.output_tokens);
+        this.opts.log?.({ task, model: res.model ?? model, inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, costUsd: cost });
+        if (res.stop_reason === 'refusal') return undefined;
+        if (res.parsed_output) return res.parsed_output as z.infer<S>;
+      } catch (e) {
+        if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError || e instanceof BudgetExceededError) throw e;
+        if (attempt === 1) throw e;
+      }
+    }
+    return undefined;
+  }
+
+  /** Search/replace edits that fix one finding in one source file. */
+  async fixEdits(req: FixRequest): Promise<FixEdits | undefined> {
+    const needles = req.finding.evidence.map((e) => e.textExcerpt ?? '').filter(Boolean);
+    const text = fileWindow(req.fileText, needles);
+    const user = [
+      `Page language: ${req.lang ?? 'unknown'}. Reviewer language: ${req.uiLang ?? 'en'}.`,
+      `Finding (${req.finding.ruleId}): ${req.finding.title}`,
+      `Why: ${req.finding.explanation}`,
+      `Suggested fix: ${req.finding.suggestion}`,
+      req.finding.suggestedCopy?.length ? `Suggested copy: ${req.finding.suggestedCopy.map((c) => c.text).join(' | ')}` : '',
+      `Evidence: ${JSON.stringify(req.finding.evidence.slice(0, 5))}`,
+      '',
+      `File: ${req.path}${text.length < req.fileText.length ? ' (excerpt around the evidence)' : ''}`,
+      '<file>',
+      text,
+      '</file>',
+    ].join('\n');
+    return this.parse('fix', FIX_SYSTEM, FixEditsSchema, user, req.market);
+  }
+
+  /** Three better versions of the text a finding is about. */
+  async suggestAlternatives(req: { finding: FixRequest['finding']; context: string; market?: MarketProfile; lang?: string; uiLang?: string }): Promise<Alternatives> {
+    const user = [
+      `Page language: ${req.lang ?? 'unknown'}. Reviewer language: ${req.uiLang ?? 'en'}.`,
+      `Finding (${req.finding.ruleId}): ${req.finding.title}`,
+      `Why: ${req.finding.explanation}`,
+      `Current suggestion: ${req.finding.suggestion}`,
+      `Affected text: ${req.finding.evidence.map((e) => e.textExcerpt).filter(Boolean).join(' | ') || '(none quoted)'}`,
+      '',
+      'Page context:',
+      req.context.slice(0, 6000),
+    ].join('\n');
+    return (await this.parse('suggest', SUGGEST_SYSTEM, AlternativesSchema, user, req.market))?.alternatives ?? [];
+  }
+}

@@ -7,3 +7,4 @@ export * from './pdf.js';
 export * from './browser.js';
 export * from './languagetool.js';
 export * from './lighthouse.js';
+export * from './fix/index.js';
