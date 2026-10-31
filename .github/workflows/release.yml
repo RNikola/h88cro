@@ -1,10 +1,16 @@
 name: Build installers
 
-# Phase 1: unsigned builds for internal testing (brief §13). Run manually or by pushing a v* tag.
+# Phase 1: unsigned builds for internal testing (brief §13). Runs manually, on v* tags, and on pull requests
+# so reviewers can download and try the installers from the run's artifacts.
 on:
   workflow_dispatch:
+  pull_request:
   push:
     tags: ['v*']
+
+concurrency:
+  group: installers-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
