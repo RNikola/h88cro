@@ -1,9 +1,23 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
 import type { UpdateState } from '../shared/ipc';
 
 const { autoUpdater } = electronUpdater;
-const RELEASES_URL = 'https://github.com/RNikola/h88cro/releases';
+/** Release page of the repository this build updates from (written into app-update.yml at build time). */
+function releasesUrl(): string {
+  try {
+    const yml = readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8');
+    const owner = yml.match(/^owner:\s*(\S+)/m)?.[1];
+    const repo = yml.match(/^repo:\s*(\S+)/m)?.[1];
+    if (owner && repo) return `https://github.com/${owner}/${repo}/releases`;
+  } catch {
+    /* dev build */
+  }
+  return 'https://github.com/RNikola/h88cro/releases';
+}
+const RELEASES_URL = releasesUrl();
 const CHECK_EVERY_MS = 4 * 60 * 60 * 1000;
 
 /**
