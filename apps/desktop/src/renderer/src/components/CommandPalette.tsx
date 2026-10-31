@@ -10,6 +10,7 @@ export function CommandPalette({ navigate, onClose }: { navigate: Navigate; onCl
     const base = [
       { label: 'New scan', run: () => navigate({ name: 'new-scan' }) },
       { label: 'Dashboard', run: () => navigate({ name: 'dashboard' }) },
+      { label: 'Sites (connect GitHub repos)', run: () => navigate({ name: 'sites' }) },
       { label: 'Settings', run: () => navigate({ name: 'settings' }) },
       ...(scans ?? []).filter((s) => s.status === 'done').map((s) => ({ label: `Report: ${s.title ?? s.url}`, run: () => navigate({ name: 'report', id: s.id }) })),
     ];

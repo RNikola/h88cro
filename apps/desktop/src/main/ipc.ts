@@ -3,12 +3,14 @@ import { join, relative } from 'node:path';
 import { BrowserWindow, dialog, ipcMain, shell, utilityProcess, type IpcMainInvokeEvent } from 'electron';
 import { diffScans, findingsToCsv, renderReportHtml, type ScanResult } from '@h88cro/engine';
 import { verifyApiKey } from '@h88cro/llm';
+import { GitHubClient } from '@h88cro/engine';
 import type { Finding } from '@h88cro/core';
 import { ChannelSchemas, type Channel, type ChannelResult, type ScanDetail, type ScanListItem } from '../shared/ipc';
 import { workerPath, type ScanQueue } from './queue';
 import { deleteSecret, getSecret, hint, setSecret } from './secrets';
 import { CLAUDE_KEY, type Services } from './services';
 import type { Updater } from './updater';
+import { FixService, GITHUB_LOGIN, GITHUB_TOKEN } from './fixes';
 
 type Handler<C extends Channel> = (payload: unknown, e: IpcMainInvokeEvent) => Promise<ChannelResult[C]> | ChannelResult[C];
 
@@ -80,6 +82,18 @@ export function registerIpc(svc: Services, queue: ScanQueue, updater: Updater, g
       proc.postMessage(msg);
     });
   }
+
+  const fixes = new FixService(
+    svc,
+    (event, data) => send(event, data),
+    async (scanId) => (await queue.rescan(scanId))!,
+    async (msg) =>
+      runWorker<{ before: string; after: string; focused: boolean }>({ type: 'fix-preview', ...msg, chromiumPath: await svc.chromiumPath() }, (m, done) => {
+        if (m.type === 'preview-done') done(m.result as { before: string; after: string; focused: boolean });
+      }),
+    assetUrl,
+  );
+  const win = (e: IpcMainInvokeEvent) => BrowserWindow.fromWebContents(e.sender) ?? undefined;
 
   const handlers: { [C in Channel]: Handler<C> } = {
     'app:state': () => svc.state(),
@@ -211,6 +225,62 @@ export function registerIpc(svc: Services, queue: ScanQueue, updater: Updater, g
     },
     'update:check': () => updater.check(),
     'update:install': () => updater.install(),
+    'github:setToken': async (p) => {
+      const { token } = ChannelSchemas['github:setToken'].parse(p);
+      try {
+        const me = await new GitHubClient(token.trim()).whoami();
+        setSecret(GITHUB_TOKEN, token.trim());
+        setSecret(GITHUB_LOGIN, me.login);
+        return { ok: true, login: me.login };
+      } catch (e) {
+        return { ok: false, error: (e as Error).message };
+      }
+    },
+    'github:clearToken': () => {
+      deleteSecret(GITHUB_TOKEN);
+      deleteSecret(GITHUB_LOGIN);
+    },
+    'github:repos': async () => {
+      const gh = fixes.github();
+      if (!gh) return [];
+      return (await gh.listRepos()).map((r) => ({ fullName: r.fullName, defaultBranch: r.defaultBranch, private: r.private, canPush: r.canPush }));
+    },
+    'site:list': () => fixes.listSites(),
+    'site:save': (p) => fixes.saveSite(ChannelSchemas['site:save'].parse(p)),
+    'site:delete': async (p) => svc.db.deleteSite(ChannelSchemas['site:delete'].parse(p).id),
+    'site:pickFolder': async (_p, e) => {
+      const r = await dialog.showOpenDialog(win(e)!, { title: 'Choose the folder with the website source', properties: ['openDirectory'] });
+      return r.canceled ? undefined : r.filePaths[0];
+    },
+    'fix:target': (p) => fixes.target(ChannelSchemas['fix:target'].parse(p).scanId),
+    'fix:setFile': (p) => {
+      const { scanId, filePath } = ChannelSchemas['fix:setFile'].parse(p);
+      return fixes.setFile(scanId, filePath);
+    },
+    'fix:propose': (p) => {
+      const { scanId, findingIds } = ChannelSchemas['fix:propose'].parse(p);
+      return fixes.propose(scanId, findingIds);
+    },
+    'fix:edit': (p) => {
+      const a = ChannelSchemas['fix:edit'].parse(p);
+      return fixes.edit(a.sessionId, a.patch, a.edit, a.replace);
+    },
+    'fix:preview': async (p) => {
+      if (!(await svc.chromiumPath())) throw new Error('The scan engine is not installed.');
+      const { sessionId, device } = ChannelSchemas['fix:preview'].parse(p);
+      return fixes.preview(sessionId, device);
+    },
+    'fix:apply': (p, e) => {
+      const { sessionId, autoMerge } = ChannelSchemas['fix:apply'].parse(p);
+      return fixes.apply(sessionId, autoMerge, win(e));
+    },
+    'fix:changes': (p) => fixes.changes(ChannelSchemas['fix:changes'].parse(p).scanId),
+    'fix:refresh': () => fixes.refresh(),
+    'fix:rescan': async (p) => ({ id: (await queue.rescan(ChannelSchemas['fix:rescan'].parse(p).scanId))! }),
+    'suggest:alternatives': (p) => {
+      const { scanId, findingId } = ChannelSchemas['suggest:alternatives'].parse(p);
+      return fixes.alternatives(scanId, findingId);
+    },
     'shell:openExternal': async (p) => {
       const { url } = ChannelSchemas['shell:openExternal'].parse(p);
       if (/^https:\/\//.test(url)) await shell.openExternal(url);
@@ -225,6 +295,6 @@ export function registerIpc(svc: Services, queue: ScanQueue, updater: Updater, g
     });
   }
 
-  return { send };
+  return { send, fixes };
 }
 

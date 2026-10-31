@@ -28,4 +28,23 @@ describe('LocalDb', () => {
     expect(await db.listFindings('s1')).toHaveLength(0);
     db.close();
   });
+
+  it('stores connected sites, page links and fixes', async () => {
+    const db = new LocalDb(':memory:');
+    await db.upsertSite({ id: 'k', name: 'Keira', kind: 'github', urlPrefix: 'https://keira.best', repo: 'o/keira', baseBranch: 'main', autoMerge: true });
+    await db.upsertSite({ id: 'k2', name: 'Keira FR', kind: 'local', urlPrefix: 'https://www.keira.best/fr', localPath: '/x' });
+    expect((await db.siteForUrl('https://keira.best/fr/'))?.id).toBe('k2');
+    expect((await db.siteForUrl('https://keira.best/en/'))?.id).toBe('k');
+    expect(await db.siteForUrl('https://keira.bestx/')).toBeUndefined();
+    expect((await db.getSite('k'))?.autoMerge).toBe(true);
+    await db.setPageMap('k', '/fr/', 'fr/index.html');
+    await db.setPageMap('k', '/fr/', 'src/fr.astro');
+    expect(await db.getPageMap('k', '/fr/')).toBe('src/fr.astro');
+    await db.addFixChange({ id: 'f1', siteId: 'k', scanId: 's', findingIds: ['a'], summary: 's', kind: 'pr', prNumber: 3, state: 'open' });
+    expect(await db.openFixPrs()).toHaveLength(1);
+    await db.updateFixChange('f1', { state: 'merged' });
+    expect(await db.openFixPrs()).toHaveLength(0);
+    expect((await db.listFixChanges(['s']))[0]?.findingIds).toEqual(['a']);
+    db.close();
+  });
 });

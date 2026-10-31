@@ -101,3 +101,51 @@ export const usageLedger = sqliteTable('usage_ledger', {
   costUsd: real('cost_usd').notNull(),
   createdAt: text('created_at').notNull().default(now),
 });
+
+/** A website connected to its source: a GitHub repository or a local folder. */
+export const site = sqliteTable('site', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind', { enum: ['github', 'local'] }).notNull(),
+  /** e.g. https://keira.best — scans of URLs under this prefix use this connection. */
+  urlPrefix: text('url_prefix').notNull(),
+  /** owner/name */
+  repo: text('repo'),
+  baseBranch: text('base_branch'),
+  localPath: text('local_path'),
+  /** Merge fix pull requests automatically so changes go live without a manual review. */
+  autoMerge: integer('auto_merge', { mode: 'boolean' }).notNull().default(false),
+  /** Local folders: push the fix branch to origin. */
+  pushBranch: integer('push_branch', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull().default(now),
+});
+
+/** Which source file renders which page (URL path). */
+export const pageMap = sqliteTable('page_map', {
+  siteId: text('site_id').notNull().references(() => site.id, { onDelete: 'cascade' }),
+  urlPath: text('url_path').notNull(),
+  filePath: text('file_path').notNull(),
+});
+
+/** An applied fix: a pull request, a local commit, or a saved file. */
+export const fixChange = sqliteTable(
+  'fix_change',
+  {
+    id: text('id').primaryKey(),
+    siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
+    scanId: text('scan_id'),
+    findingIds: text('finding_ids', { mode: 'json' }).$type<string[]>().notNull(),
+    summary: text('summary').notNull(),
+    kind: text('kind', { enum: ['pr', 'local', 'file'] }).notNull(),
+    prNumber: integer('pr_number'),
+    url: text('url'),
+    branch: text('branch'),
+    /** open | merged | closed | auto-merge | committed | saved | failed */
+    state: text('state').notNull(),
+    message: text('message'),
+    rescanId: text('rescan_id'),
+    createdAt: text('created_at').notNull().default(now),
+    updatedAt: text('updated_at').notNull().default(now),
+  },
+  (t) => [index('fix_change_scan_idx').on(t.scanId)],
+);

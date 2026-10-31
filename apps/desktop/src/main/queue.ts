@@ -75,6 +75,15 @@ export class ScanQueue {
     return ids;
   }
 
+  /** Scan the same page again with the same options (e.g. after a fix was published). */
+  async rescan(fromId: string): Promise<string | undefined> {
+    const row = await this.svc.db.getScan(fromId);
+    if (!row) return undefined;
+    const r = row.request as StoredRequest;
+    const [id] = await this.start({ targets: [r.target], marketId: r.marketId, devices: r.devices, pageType: r.pageType as StartScanInput['pageType'], deep: r.deep ?? false, lighthouse: r.lighthouse, useClaude: r.useClaude ?? false });
+    return id;
+  }
+
   async cancel(id: string) {
     const proc = this.running.get(id);
     if (proc) proc.kill();

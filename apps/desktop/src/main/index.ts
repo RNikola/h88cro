@@ -99,7 +99,7 @@ app.whenReady().then(async () => {
   const queue = new ScanQueue(svc, (event, data) => win?.webContents.send(event, data));
   const updater = new Updater((state) => win?.webContents.send('update:status', state));
   svc.update = () => updater.state;
-  registerIpc(svc, queue, updater, () => win, isTrustedSender);
+  const { fixes } = registerIpc(svc, queue, updater, () => win, isTrustedSender);
   if (await svc.db.getProfile()) {
     queue.setConcurrency((await svc.settings()).concurrency);
     await queue.resume();
@@ -107,6 +107,7 @@ app.whenReady().then(async () => {
   buildMenu((to) => win?.webContents.send('menu:navigate', { to }));
   createWindow();
   updater.start();
+  fixes.start();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

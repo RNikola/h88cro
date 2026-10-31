@@ -1,7 +1,7 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { drizzle, type SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import type { Finding } from '@h88cro/core';
 import { MIGRATIONS } from './migrations.js';
@@ -29,6 +29,9 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 export type ScanRow = typeof schema.scan.$inferSelect;
 export type ScanInsert = typeof schema.scan.$inferInsert;
+export type SiteRow = typeof schema.site.$inferSelect;
+export type SiteInsert = typeof schema.site.$inferInsert;
+export type FixChangeRow = typeof schema.fixChange.$inferSelect;
 
 /**
  * Local SQLite database. Uses Node's built-in `node:sqlite` (bundled with Electron), so there is
@@ -166,5 +169,50 @@ export class LocalDb {
   // Usage
   async addUsage(row: typeof schema.usageLedger.$inferInsert) {
     await this.db.insert(schema.usageLedger).values(row).run();
+  }
+
+  // Connected sites
+  listSites() {
+    return this.db.select().from(schema.site).orderBy(schema.site.name).all();
+  }
+  getSite(id: string) {
+    return this.db.select().from(schema.site).where(eq(schema.site.id, id)).get();
+  }
+  async upsertSite(row: SiteInsert) {
+    const { id, createdAt: _c, ...rest } = row;
+    await this.db.insert(schema.site).values(row).onConflictDoUpdate({ target: schema.site.id, set: rest }).run();
+  }
+  async deleteSite(id: string) {
+    await this.db.delete(schema.site).where(eq(schema.site.id, id)).run();
+  }
+  /** The connected site whose URL prefix is the longest match for `url`. */
+  async siteForUrl(url: string) {
+    const norm = (u: string) => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/+$/, '').toLowerCase();
+    const target = norm(url);
+    const hits = (await this.listSites()).filter((s) => target === norm(s.urlPrefix) || target.startsWith(norm(s.urlPrefix) + '/'));
+    return hits.sort((a, b) => b.urlPrefix.length - a.urlPrefix.length)[0];
+  }
+  async getPageMap(siteId: string, urlPath: string) {
+    const rows = await this.db.select().from(schema.pageMap).where(and(eq(schema.pageMap.siteId, siteId), eq(schema.pageMap.urlPath, urlPath))).all();
+    return rows[0]?.filePath;
+  }
+  async setPageMap(siteId: string, urlPath: string, filePath: string) {
+    await this.db.delete(schema.pageMap).where(and(eq(schema.pageMap.siteId, siteId), eq(schema.pageMap.urlPath, urlPath))).run();
+    await this.db.insert(schema.pageMap).values({ siteId, urlPath, filePath }).run();
+  }
+
+  // Applied fixes
+  async addFixChange(row: typeof schema.fixChange.$inferInsert) {
+    await this.db.insert(schema.fixChange).values(row).run();
+  }
+  async updateFixChange(id: string, patch: Partial<typeof schema.fixChange.$inferInsert>) {
+    await this.db.update(schema.fixChange).set({ ...patch, updatedAt: new Date().toISOString() }).where(eq(schema.fixChange.id, id)).run();
+  }
+  listFixChanges(scanIds?: string[]) {
+    const q = this.db.select().from(schema.fixChange);
+    return (scanIds ? q.where(inArray(schema.fixChange.scanId, scanIds)) : q).orderBy(desc(schema.fixChange.createdAt)).all();
+  }
+  openFixPrs() {
+    return this.db.select().from(schema.fixChange).where(and(eq(schema.fixChange.kind, 'pr'), inArray(schema.fixChange.state, ['open', 'auto-merge']))).all();
   }
 }

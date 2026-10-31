@@ -51,7 +51,9 @@ Done: Electron shell, welcome window, local profile with password, first-run eng
 
 Also: searchable picker for every language and country (hand-written profiles for 10 markets, generic ones from locale data for the rest), local-author check, in-app updates.
 
-Later phases: Team mode (Supabase accounts, shared reports), Fix/PR/Suggest actions, code signing (needed for silent Mac updates).
+Fix engine (brief §10): **Suggest alternatives** (3 rewrites from Claude), **Fix** (automatic fixes for common rules, Claude for the rest, editable diff, before/after preview, re-check), **Apply** (pull request on a new branch of a connected GitHub repo, with an optional per-site "Merge automatically"; or a new branch in a local folder; or a saved copy of the page), **batch fix**, PR status tracking and a re-scan a few minutes after a fix is merged. See [docs/FIXES.md](docs/FIXES.md).
+
+Later phases: Team mode (Supabase accounts, shared reports), GitHub sign-in with an OAuth app (tokens for now), code signing (needed for silent Mac updates).
 
 ## Deviations from the brief
 
@@ -60,6 +62,8 @@ Later phases: Team mode (Supabase accounts, shared reports), Fix/PR/Suggest acti
 - **Chromium version:** the engine resolves the current stable Chrome for Testing build at first download and records its SHA-256; set `H88CRO_CHROME_BUILD` to pin a build.
 - **LanguageTool:** used through its HTTP API (public or self-hosted URL in Settings). Bundling a local LanguageTool server is not built yet.
 - **Local data:** the profile password gates the app, but the database is not encrypted at rest. The Claude API key is stored with the OS keychain (Electron `safeStorage`).
+- **Merge automatically:** the brief says nothing is pushed straight to the default branch. Fixes always go through their own pull request; when a site has "Merge automatically" on, the app merges that pull request (or turns on GitHub auto-merge if branch rules require checks), so changes reach the live domain without a manual step.
+- **GitHub sign-in:** a fine-grained personal access token stored in the OS keychain. The OAuth device flow needs an OAuth app client ID and will replace it later.
 - **Fixtures:** besides the real `pooky-fr.html` and `keira-fr.html`, two synthetic pages cover rules the real pages don't trigger (see `fixtures/EXPECTED_FINDINGS.md`).
 
 ## Security

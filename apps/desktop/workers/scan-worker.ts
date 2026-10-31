@@ -2,12 +2,13 @@
  * Scan worker (Electron utilityProcess). Runs the headless browser, analyzers, Lighthouse and
  * Claude calls outside the main process, so a crashing or slow page never freezes the app.
  */
-import { exportPdf, installChromium, scan, type ScanRequest, type ScanResult } from '@h88cro/engine';
+import { exportPdf, installChromium, renderFixPreview, scan, type ScanRequest, type ScanResult } from '@h88cro/engine';
 
 type Incoming =
   | { type: 'scan'; id: string; request: Omit<ScanRequest, 'now'> }
   | { type: 'install-chromium'; cacheDir: string }
-  | { type: 'export-pdf'; result: ScanResult; outPath: string; chromiumPath?: string };
+  | { type: 'export-pdf'; result: ScanResult; outPath: string; chromiumPath?: string }
+  | { type: 'fix-preview'; url: string; beforeHtml: string; afterHtml: string; focusText: string[]; device: 'mobile' | 'desktop'; outDir: string; chromiumPath?: string };
 
 type ParentPort = { on(event: 'message', cb: (e: { data: Incoming }) => void): void; postMessage(msg: unknown): void };
 const port = (process as unknown as { parentPort: ParentPort }).parentPort;
@@ -23,6 +24,10 @@ port.on('message', async ({ data }) => {
     } else if (data.type === 'export-pdf') {
       await exportPdf(data.result, data.outPath, data.chromiumPath);
       port.postMessage({ type: 'pdf-done', outPath: data.outPath });
+    } else if (data.type === 'fix-preview') {
+      const { type: _t, chromiumPath, ...o } = data;
+      const result = await renderFixPreview({ ...o, executablePath: chromiumPath });
+      port.postMessage({ type: 'preview-done', result });
     }
   } catch (e) {
     port.postMessage({ type: 'error', id: 'id' in data ? data.id : undefined, message: (e as Error).message });

@@ -76,6 +76,43 @@ const titles = await win.locator('h3').allTextContents();
 if (!titles.some((t) => t.includes('deuxième place'))) throw new Error('Expected the rank mismatch finding in the report');
 step('consistency finding visible');
 
+// Fix: built-in fix for the rank mismatch, with a diff and a passing re-check.
+await win.emulateMedia({ colorScheme: 'light' });
+const rankCard = win.locator('div.space-y-3', { has: win.locator('h3', { hasText: 'deuxième place' }) }).last();
+await rankCard.getByRole('button', { name: 'Fix', exact: true }).click();
+await win.getByText('Re-check:').waitFor({ timeout: 30000 });
+const recheckText = await win.getByText('Re-check:').locator('..').textContent();
+if (!/1 of 1 fixed/.test(recheckText ?? '')) throw new Error(`Unexpected re-check: ${recheckText}`);
+await win.getByRole('button', { name: /Save fixed page/ }).waitFor();
+await snap('10a-fix-modal');
+await win.getByRole('button', { name: 'Cancel' }).last().click();
+step('fix: diff + re-check (1 of 1 fixed)');
+
+// Batch fix: select several findings.
+const boxes = win.getByRole('checkbox', { name: 'Select for batch fix' });
+await boxes.nth(0).check();
+await boxes.nth(1).check();
+await win.getByRole('button', { name: /Fix selected/ }).click();
+await win.getByText('Fix 2 issues').waitFor();
+await win.getByText(/Re-check:|could not|needs Claude/).first().waitFor({ timeout: 30000 });
+await snap('10b-batch-fix');
+await win.getByRole('button', { name: 'Cancel' }).last().click();
+await win.getByRole('button', { name: 'Clear' }).click();
+step('batch fix modal');
+
+// Suggest alternatives without a Claude key explains what is needed.
+await rankCard.getByRole('button', { name: 'Suggest alternatives' }).click();
+await win.getByText(/Add a Claude API key/).first().waitFor();
+step('suggest alternatives without a key');
+
+// Sites screen and GitHub settings.
+await win.getByRole('button', { name: 'Sites' }).first().click();
+await win.getByRole('button', { name: /Connect a site/ }).click();
+await win.getByText('Merge fixes automatically').waitFor();
+await snap('10c-sites');
+await win.getByRole('button', { name: 'Cancel' }).click();
+step('sites screen');
+
 // Language picker: search any language, country follows.
 await win.emulateMedia({ colorScheme: 'light' });
 await win.getByRole('button', { name: /New scan/ }).first().click();
@@ -83,12 +120,13 @@ await win.getByRole('button', { name: 'Language' }).click();
 await win.getByPlaceholder('Search languages…').fill('serb');
 await win.keyboard.press('Enter');
 await win.getByRole('button', { name: 'Country' }).getByText('Serbia').waitFor();
-await snap('10-language-serbian');
+await snap('10d-language-serbian');
 step('language search → Serbian / Serbia');
 
 // Settings shows the update section.
 await win.getByRole('button', { name: 'Settings' }).first().click();
 await win.getByRole('button', { name: /Check for updates/ }).waitFor();
+await win.getByText('Lets H88CRO open pull requests').waitFor();
 await snap('11-settings-updates');
 step('update settings visible');
 
